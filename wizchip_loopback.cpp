@@ -1,9 +1,18 @@
+/**
+   Copyright (c) 2021 WIZnet Co.,Ltd
+
+   SPDX-License-Identifier: BSD-3-Clause
+*/
+
 //#define STATIC_IP
 #define USE_DHCP
-//#define TCP_SERVER
 
 #define RTK_RECV
-
+/**
+   ----------------------------------------------------------------------------------------------------
+   Includes
+   ----------------------------------------------------------------------------------------------------
+*/
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -24,6 +33,7 @@ extern "C" {
 #include "hardware/structs/sio.h"
 
 #include "cfg.h"
+#include "gpsLib.h"
 
 #if defined(USE_DHCP)
 #include "dhcp.h"
@@ -64,6 +74,12 @@ inline uint32_t usTime()
  return timer_hw->timerawl;
 }
 
+/**
+   ----------------------------------------------------------------------------------------------------
+   Macros
+   ----------------------------------------------------------------------------------------------------
+*/
+
 #if defined(USE_DHCP)
 /* Retry count */
 #define DHCP_RETRY_COUNT 5
@@ -76,7 +92,6 @@ inline uint32_t usTime()
 /* Socket */
 #define SOCKET_TCP_SERVER 0
 #define SOCKET_TCP_CLIENT 1
-
 #if 0
 #define SOCKET_UDP 2
 #define SOCKET_TCP_SERVER6 3
@@ -110,8 +125,8 @@ inline uint32_t usTime()
 // #define IPV6
 
 #ifdef IPV4
-//#define TCP_SERVER
-#define TCP_CLIENT
+#define TCP_SERVER
+//#define TCP_CLIENT
 // #define UDP
 #endif
 
@@ -191,28 +206,28 @@ static wiz_NetInfo g_net_info = {
 #endif
 };
 
-enum RCV_STATE {RCV_IDLE, RCV_GET_LEN, RCV_GET_DATA, RCV_TEXT};
-
-#define RTK_BUF_SIZE 1024
-uint32_t crcBuf[1024];
-
-typedef struct S_RTK_DATA
-{
- enum RCV_STATE state;
- unsigned int t0;
- uint64_t startTime;
- uint32_t crc;
- int count;
- int len;
- int fil;
- unsigned char buf[RTK_BUF_SIZE];
- unsigned int t0Accum;
- int rxAccum;
- unsigned int tData;
- //int rxCount;
-} T_RTK_DATA, *P_RTK_DATA;
-
-T_RTK_DATA rtk;
+// enum RCV_STATE {RCV_IDLE, RCV_GET_LEN, RCV_GET_DATA, RCV_TEXT};
+//
+// #define RTK_BUF_SIZE 1024
+// uint32_t crcBuf[1024];
+//
+// typedef struct S_RTK_DATA
+// {
+//  enum RCV_STATE state;
+//  unsigned int t0;
+//  uint64_t startTime;
+//  uint32_t crc;
+//  int count;
+//  int len;
+//  int fil;
+//  unsigned char buf[RTK_BUF_SIZE];
+//  unsigned int t0Accum;
+//  int rxAccum;
+//  unsigned int tData;
+//  //int rxCount;
+// } T_RTK_DATA, *P_RTK_DATA;
+//
+// T_RTK_DATA rtk;
 
 #if defined(TCP_SERVER)
 /* Loopback */
@@ -307,7 +322,7 @@ static void wizchip_dhcp_conflict();
 static void repeating_timer_callback();
 #endif
 
-static void buildCRC24qTable();
+// static void buildCRC24qTable();
 
 #define UART_RING
 #define UART1_RING
@@ -662,6 +677,8 @@ int main() {
  printf("Compiled @ %s, %s\n", __DATE__, __TIME__);
  printf("==========================================================\n");
 
+ printf("hostname %s\n", HOST_NAME);
+
  lastStatus = -1;
  any_port = 50000 + (get_rand_32() & 0x3ff);
  printf("using port %d\n", any_port);
@@ -702,7 +719,7 @@ int main() {
 
  static uint32_t secTimer;
  static bool phyDown = false;
- while (1)
+ while (true)
  {
   const uint8_t status = getSn_SR(SOCKET_TCP_SERVER);
 
@@ -726,7 +743,7 @@ int main() {
 
    if ((status == SOCK_ESTABLISHED))
    {
-    printf("t %u\n", (unsigned int)(t32 - rtk.tData));
+    printf("t %u\n", static_cast<unsigned int>(t32 - rtk.tData));
     if ((t32 - rtk.tData) > (10 * 1000000))
     {
      rtk.tData = t32;
@@ -761,7 +778,7 @@ int main() {
    }
   }
 
-  char* p = (char*)serialBuf;
+  char* p = reinterpret_cast<char*>(serialBuf);
   int size = 0;
   while (uart_is_readable(uart1) &&
 	 size < sizeof(serialBuf))
@@ -790,7 +807,7 @@ int main() {
    printf(" loopback_tcps error : %d\n", retval);
 
    // ReSharper disable once CppDFAEndlessLoop
-   while (1);
+   while (true);
   }
  }
  // ReSharper disable once CppDFAUnreachableCode
@@ -884,37 +901,37 @@ int main() {
    ----------------------------------------------------------------------------------------------------
 */
 
-/* ── CRC-24Q constants ───────────────────────────────────────────────────── */
- 
-#define CRC24Q_POLY      0x1864CFBu  /* Generator polynomial                 */
-#define RTCM3_PREAMBLE   0xD3u       /* Mandatory first byte of every frame  */
-#define RTCM3_HDR_LEN    3           /* Preamble + 2 length/reserved bytes   */
-#define RTCM3_CRC_LEN    3           /* 24-bit CRC appended at end           */
-#define RTCM3_MIN_FRAME  (RTCM3_HDR_LEN + RTCM3_CRC_LEN)
- 
-/* ── CRC-24Q lookup table (generated once on first use) ─────────────────── */
- 
-static uint32_t crc24qTable[256];
- 
-static void buildCRC24qTable()
-{
- for (uint32_t i = 0; i < 256; i++)
- {
-  uint32_t crc = i << 16;
-  for (int j = 0; j < 8; j++)
-  {
-   crc <<= 1;
-   if (crc & 0x1000000u)
-    crc ^= CRC24Q_POLY;
-  }
-  crc24qTable[i] = crc & 0xFFFFFFu;
- }
-}
-
-uint32_t crc24(const uint32_t crc, const unsigned char c)
-{
- return ((crc << 8) ^ crc24qTable[((crc >> 16) ^ c) & 0xFFu]) & 0xFFFFFFu;
-}
+// /* ── CRC-24Q constants ───────────────────────────────────────────────────── */
+//
+// #define CRC24Q_POLY      0x1864CFBu  /* Generator polynomial                 */
+// #define RTCM3_PREAMBLE   0xD3u       /* Mandatory first byte of every frame  */
+// #define RTCM3_HDR_LEN    3           /* Preamble + 2 length/reserved bytes   */
+// #define RTCM3_CRC_LEN    3           /* 24-bit CRC appended at end           */
+// #define RTCM3_MIN_FRAME  (RTCM3_HDR_LEN + RTCM3_CRC_LEN)
+//
+// /* ── CRC-24Q lookup table (generated once on first use) ─────────────────── */
+//
+// static uint32_t crc24qTable[256];
+//
+// static void buildCRC24qTable()
+// {
+//  for (uint32_t i = 0; i < 256; i++)
+//  {
+//   uint32_t crc = i << 16;
+//   for (int j = 0; j < 8; j++)
+//   {
+//    crc <<= 1;
+//    if (crc & 0x1000000u)
+//     crc ^= CRC24Q_POLY;
+//   }
+//   crc24qTable[i] = crc & 0xFFFFFFu;
+//  }
+// }
+//
+// uint32_t crc24(const uint32_t crc, const unsigned char c)
+// {
+//  return ((crc << 8) ^ crc24qTable[((crc >> 16) ^ c) & 0xFFu]) & 0xFFFFFFu;
+// }
 
 #ifdef TCP_SERVER
 
@@ -924,8 +941,8 @@ static void processData(const unsigned char *ptr, size_t len);
 
 int32_t loopback_tcps(uint8_t sn, uint8_t* buf, uint16_t port)
 {
- int32_t ret;
-
+ int ret;
+ int size;
  switch (getSn_SR(sn))
  {
  case SOCK_ESTABLISHED:
@@ -941,15 +958,15 @@ int32_t loopback_tcps(uint8_t sn, uint8_t* buf, uint16_t port)
    setSn_IR(sn, Sn_IR_CON);
   }
 	
-  int size = getSn_RX_RSR(sn);
+  size = getSn_RX_RSR(sn);
   if (size > 0) // Don't need to check SOCKERR_BUSY because it doesn't occur.
   {
    if (size > DATA_BUF_SIZE)
     size = DATA_BUF_SIZE;
-   ret = recv(sn, buf, size);
+   ret = static_cast<int>(recv(sn, buf, size));
    if (ret <= 0)
     return ret; // check SOCKERR_BUSY & SOCKERR_XXX. For showing the occurrence of SOCKERR_BUSY.
-   size = (uint16_t) ret;
+   size = static_cast<uint16_t>(ret);
 
    rtk.tData = usTime();
    processData(buf, size);
@@ -958,18 +975,18 @@ int32_t loopback_tcps(uint8_t sn, uint8_t* buf, uint16_t port)
 
  case SOCK_CLOSE_WAIT:
 #ifdef _LOOPBACK_DEBUG_
-  printf("%d:Socket Closed\n", sn);
+   printf("%d:Socket Closed\n", sn);
 #endif
-  ret = (int) disconnect(sn);
-  if (ret != SOCK_OK)
-   return ret;
+   ret = static_cast<int>(static_cast<unsigned char>(disconnect(sn)));
+   if (ret != SOCK_OK)
+    return ret;
   break;
 
  case SOCK_INIT:
 #ifdef _LOOPBACK_DEBUG_
   printf("%d:Listen, TCP server loopback, port [%d]\n", sn, port);
 #endif
-  ret = (int) listen(sn);
+  ret = static_cast<int>(static_cast<unsigned char>(listen(sn)));
   if (ret != SOCK_OK)
    return ret;
   break;
@@ -978,7 +995,7 @@ int32_t loopback_tcps(uint8_t sn, uint8_t* buf, uint16_t port)
 #ifdef _LOOPBACK_DEBUG_
   printf("%d:Socket close\n", sn);
 #endif
-  ret = (int) socket(sn, Sn_MR_TCP, port, 0x00);
+  ret = static_cast<int>(static_cast<unsigned char>(socket(sn, Sn_MR_TCP, port, 0x00)));
   if (ret != sn)
    return ret;
   break;
@@ -1005,7 +1022,7 @@ static void processData(const unsigned char *ptr, size_t len)
     rtk.count = 2;
     uart_putc(UART1_ID, ch);
     rtk.buf[0] = ch;
-    rtk.crc = crc24qTable[(int) ch];
+    rtk.crc = crc24qTable[static_cast<int>(ch)];
     crcBuf[0] = rtk.crc;
     rtk.fil = 1;
     rtk.t0 = usTime();
@@ -1192,36 +1209,36 @@ int32_t loopback_tcpc(uint8_t sn, uint8_t* buf, uint8_t* destip, uint16_t destpo
  return 1;
 }
 
-char* nextArg(char* p0)
-{
- while (true)
- {
-  const char c0 = *p0;
-  if (c0 == 0)
-   break;
-  p0 += 1;
-  if (c0 == ',')
-  {
-   break;
-  }
- }
- return p0;
-}
-
-int getNum(char **p0, int n)
-{
- char *p1 = *p0;
- int val = 0;
- while (n > 0)
- {
-  const char c1 = *p1++;
-  val *= 10;
-  val += c1 - '0';
-  n -= 1;
- }
- *p0 = p1;
- return val;
-}
+// char* nextArg(char* p0)
+// {
+//  while (true)
+//  {
+//   const char c0 = *p0;
+//   if (c0 == 0)
+//    break;
+//   p0 += 1;
+//   if (c0 == ',')
+//   {
+//    break;
+//   }
+//  }
+//  return p0;
+// }
+//
+// int getNum(char **p0, int n)
+// {
+//  char *p1 = *p0;
+//  int val = 0;
+//  while (n > 0)
+//  {
+//   const char c1 = *p1++;
+//   val *= 10;
+//   val += c1 - '0';
+//   n -= 1;
+//  }
+//  *p0 = p1;
+//  return val;
+// }
 
 void processSerial(const int sock)
 {
@@ -1294,7 +1311,7 @@ void processSerial(const int sock)
 #endif
     rtk.t0Accum = usTime();
 #if defined(RTK_SEND)
-    const int err = send(sock, rtk.buf, rtk.fil);
+    const int err = send(sock, reinterpret_cast<uint8_t*>(rtk.buf), rtk.fil);
     if (err < 0)
      printf("send failed: errno %d\n", err);
 
@@ -1319,7 +1336,7 @@ void processSerial(const int sock)
    if (c == '\n')
    {
     rtk.buf[rtk.fil] = 0;
-    const int err = send(sock, rtk.buf, rtk.fil);
+    const int err = send(sock, reinterpret_cast<uint8_t*>(rtk.buf), rtk.fil);
     if (err < 0)
      printf("send failed: errno %d\n", err);
 #if 1
@@ -1410,23 +1427,23 @@ static void repeating_timer_callback() {
 }
 #endif	/* USE_DHCP */
 
-void printHex(const uint8_t *data, size_t len)
-{
- int col = 0;
- for (size_t i = 0; i < len; i++)
- {
-  if (col == 0)
-  {
-   printf("  %04X: ", i);
-  }
-  printf("%02X ", data[i]);
-  col += 1;
-  if (col == 16)
-  {
-   col = 0;
-   printf("\n");
-  }
- }
- if (col != 0)
-  printf("\n");
-}
+// void printHex(const uint8_t *data, size_t len)
+// {
+//  int col = 0;
+//  for (size_t i = 0; i < len; i++)
+//  {
+//   if (col == 0)
+//   {
+//    printf("  %04X: ", i);
+//   }
+//   printf("%02X ", data[i]);
+//   col += 1;
+//   if (col == 16)
+//   {
+//    col = 0;
+//    printf("\n");
+//   }
+//  }
+//  if (col != 0)
+//   printf("\n");
+// }

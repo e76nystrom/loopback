@@ -13,7 +13,7 @@ if (EXISTS ${picoVscode})
 endif()
 # ====================================================================================
 
-set(ENV{PICO_SDK_PATH} "/Volumes/Development/eric/pico/pico-sdk")
+set(ENV{PICO_SDK_PATH} "/Volumes/Development/eric/GPS/pico-sdk")
 
 set(PICO_BOARD pico CACHE STRING "rp2040")
 
@@ -35,10 +35,10 @@ pico_sdk_init()
 # git clone https://github.com/Wiznet/ioLibrary_Driver.git  (as a sibling dir, or a submodule)
 
 set(WIZNET_DIR ${CMAKE_SOURCE_DIR}/ioLibrary_Driver)
-set(WIZNET_BASE_DIR /Volumes/Development/eric/pico/WIZnet-PICO-C)
-set(WIZNET_LIB_DIR /Volumes/Development/eric/pico/WIZnet-PICO-C/build/libraries)
-set(WIZNET_PORT_DIR /Volumes/Development/eric/pico/WIZnet-PICO-C/build/port)
-set(WIZNET_BUILD_DIR /Volumes/Development/eric/pico/WIZnet-PICO-C/build)
+set(WIZNET_BASE_DIR /Volumes/Development/eric/GPS/WIZnet-PICO-C)
+set(WIZNET_LIB_DIR /Volumes/Development/eric/GPS/WIZnet-PICO-C/build/libraries)
+set(WIZNET_PORT_DIR /Volumes/Development/eric/GPS/WIZnet-PICO-C/build/port)
+set(WIZNET_BUILD_DIR /Volumes/Development/eric/GPS/WIZnet-PICO-C/build)
 
 add_executable(pico_w5500_tcp_server wizchip_loopback.cpp dhcp.c ../gpsLib/src/gpsLib.cpp)
 
@@ -58,12 +58,12 @@ target_include_directories(pico_w5500_tcp_server PRIVATE
     ../gpsLib/src
 )
 
-# -I/Volumes/Development/eric/pico/WIZnet-PICO-C/port \
-# -I/Volumes/Development/eric/pico/WIZnet-PICO-C/port/timer \
-# -I/Volumes/Development/eric/pico/WIZnet-PICO-C/port/ioLibrary_Driver/inc \
-# -I/Volumes/Development/eric/pico/WIZnet-PICO-C/libraries/ioLibrary_Driver/Ethernet \
-# -I/Volumes/Development/eric/pico/WIZnet-PICO-C/libraries/ioLibrary_Driver/Ethernet/W5500 \
-# -I/Volumes/Development/eric/pico/WIZnet-PICO-C/libraries/ioLibrary_Driver/Application/loopback \
+# -I/Volumes/Development/eric/GPS/WIZnet-PICO-C/port \
+# -I/Volumes/Development/eric/GPS/WIZnet-PICO-C/port/timer \
+# -I/Volumes/Development/eric/GPS/WIZnet-PICO-C/port/ioLibrary_Driver/inc \
+# -I/Volumes/Development/eric/GPS/WIZnet-PICO-C/libraries/ioLibrary_Driver/Ethernet \
+# -I/Volumes/Development/eric/GPS/WIZnet-PICO-C/libraries/ioLibrary_Driver/Ethernet/W5500 \
+# -I/Volumes/Development/eric/GPS/WIZnet-PICO-C/libraries/ioLibrary_Driver/Application/loopback \
 
 # Only the pieces we actually need: core W5500 driver + socket API + DHCP client
 file(GLOB WIZNET_SOURCES
