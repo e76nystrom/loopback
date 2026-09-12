@@ -4,14 +4,17 @@
 
 #define RTK_RECV
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+//#include <stdbool.h>
 
 #include "port_common.h"
+extern "C" {
 #include "wizchip_conf.h"
 #include "wizchip_spi.h"
+#include "timer/timer.h"
+}
 #include "loopback.h"
 #include "socket.h"
 #include "pico/unique_id.h"
@@ -26,7 +29,7 @@
 #include "dhcp.h"
 #include "dns.h"
 
-#include "timer.h"
+//#include "timer.h"
 #endif
 
 #define RTK_SEND
@@ -272,10 +275,10 @@ static uint8_t g_dhcp_get_ip_flag = 0;
 
 /* DNS */
 #if defined(TCP_SERVER)
-static uint8_t *g_dns_target_domain = HOST_NAME;
+auto g_dns_target_domain = const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(HOST_NAME));
 #endif
 #if defined(TCP_CLIENT)
-uint8_t *g_dns_target_domain = (uint8_t *) SERVER_NAME;
+auto g_dns_target_domain = const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(SERVER_NAME));
 #endif
 
 static uint8_t g_dns_target_ip[4] = {
@@ -296,12 +299,12 @@ static volatile uint16_t g_msec_cnt = 0;
 
 #if defined(USE_DHCP)
 /* DHCP */
-static void wizchip_dhcp_init(void);
-static void wizchip_dhcp_assign(void);
-static void wizchip_dhcp_conflict(void);
+static void wizchip_dhcp_init();
+static void wizchip_dhcp_assign();
+static void wizchip_dhcp_conflict();
 
 /* Timer */
-static void repeating_timer_callback(void);
+static void repeating_timer_callback();
 #endif
 
 static void buildCRC24qTable();
@@ -333,7 +336,7 @@ typedef struct {
 } uart_ring_t;
 
 static void ring_push(uart_ring_t *ring, uint8_t byte) {
- uint32_t next = (uint32_t) ((ring->head + 1) % UART_RING_SIZE);
+ auto next = (uint32_t) ((ring->head + 1) % UART_RING_SIZE);
  if (next != ring->tail) {        /* drop the byte if the ring is full */
   ring->buf[ring->head] = byte;
   ring->head = next;
@@ -405,7 +408,7 @@ static void uart1_read_exact(uint8_t *data, size_t len)  { uart_read_blocking(UA
 #endif
 
 /* ---------- Init helpers ---------- */
-static void uart_init_hw(void) {
+static void uart_init_hw() {
 #if defined(UART0_RING)
  memset((void *) uart0_rx_ring.buf, 0, sizeof(uart_ring_t));
  uart_init(UART0_ID, UART0_BAUD);
@@ -512,7 +515,7 @@ void networkInit(bool first)
     printf(" DHCP failed\n");
     DHCP_stop();
     // ReSharper disable once CppDFAEndlessLoop
-    while (1)
+    while (true)
     {
     }
    }
@@ -523,15 +526,15 @@ void networkInit(bool first)
   /* Get IP through DNS */
   if ((g_dns_get_ip_flag == 0) && (retval == DHCP_IP_LEASED))
   {
-   printf(" starting DNS loop %s\n", (const char *) g_dns_target_domain);
+   printf(" starting DNS loop %s\n", reinterpret_cast<const char*>(g_dns_target_domain));
    // ReSharper disable once CppDFAEndlessLoop
-   while (1)
+   while (true)
    {
-    retval = (int) DNS_run(g_net_info.dns, g_dns_target_domain, g_dns_target_ip);
+    retval = static_cast<unsigned char>(DNS_run(g_net_info.dns, g_dns_target_domain, g_dns_target_ip));
     if (retval > 0)
     {
      printf(" DNS success\n");
-     printf(" Target domain : %s\n", (const char *) g_dns_target_domain);
+     printf(" Target domain : %s\n", reinterpret_cast<const char*>(g_dns_target_domain));
      printf(" IP of target domain : %d.%d.%d.%d\n", g_dns_target_ip[0], g_dns_target_ip[1],
 	    g_dns_target_ip[2], g_dns_target_ip[3]);
      g_dns_get_ip_flag = 1;
@@ -550,7 +553,7 @@ void networkInit(bool first)
     {
      printf(" DNS failed\n");
      // ReSharper disable once CppDFAEndlessLoop
-     while (1);
+     while (true);
     }
 
     wizchip_delay_ms(1000); // wait for 1 second
@@ -580,16 +583,16 @@ void wizchip_rst() {
 #endif
  unsigned int tmp = sio_hw->gpio_oe;
  printf("output enable %08x %08x\n", tmp, tmp & (1 << PIN_RST));
- gpio_put(PIN_RST, 0);
+ gpio_put(PIN_RST, false);
  sleep_ms(100);
 
- gpio_put(PIN_RST, 1);
+ gpio_put(PIN_RST, true);
  sleep_ms(100);
 
  bi_decl(bi_1pin_with_name(PIN_RST, "WIZCHIP RESET"));
 }
 
-void wizchip_spi_init(void) {
+void wizchip_spi_init() {
 #ifdef USE_PIO
  spi_handle = wiznet_spi_pio_open(&g_spi_config);
  (*spi_handle)->set_active(spi_handle);
@@ -607,7 +610,7 @@ void wizchip_spi_init(void) {
  // chip select is active-low, so we'll initialise it to a driven-high state
  gpio_init(PIN_CS);
  gpio_set_dir(PIN_CS, GPIO_OUT);
- gpio_put(PIN_CS, 1);
+ gpio_put(PIN_CS, true);
 
  // make the SPI pins available to picotool
  bi_decl(bi_1pin_with_name(PIN_CS, "W5x00 CHIP SELECT"));
@@ -799,7 +802,7 @@ int main() {
 
  lastTime = timer_time_us_64(timer_hw);
 
- while (1)
+ while (true)
  {
   const uint64_t t = timer_time_us_64(timer_hw);
   if ((t - dhcpT0) > (3600 * 1000000ULL))
@@ -820,7 +823,7 @@ int main() {
    printf(" loopback_tcpc error : %d\n", retval);
 
    // ReSharper disable once CppDFAEndlessLoop
-   while (1)
+   while (true)
     ;
   }
  }
@@ -1145,7 +1148,7 @@ int32_t loopback_tcpc(uint8_t sn, uint8_t* buf, uint8_t* destip, uint16_t destpo
 #ifdef _LOOPBACK_DEBUG_
   printf("%d:Socket Closed\n", sn);
 #endif
-  if ((ret = (int32_t)disconnect(sn)) != SOCK_OK)
+  if ((ret = static_cast<unsigned char>(disconnect(sn))) != SOCK_OK)
   {
    return ret;
   }
@@ -1156,7 +1159,7 @@ int32_t loopback_tcpc(uint8_t sn, uint8_t* buf, uint8_t* destip, uint16_t destpo
   printf("%d:Try to connect to the %d.%d.%d.%d : %d\n", sn, destip[0], destip[1], destip[2], destip[3],
 	 destport);
 #endif
-  if ((ret = (int32_t) connect(sn, destip, destport)) != SOCK_OK)
+  if ((ret = static_cast<unsigned char>(connect(sn, destip, destport))) != SOCK_OK)
   {
    return ret; //	Try to TCP connect to the TCP server (destination)
   }
@@ -1173,9 +1176,9 @@ int32_t loopback_tcpc(uint8_t sn, uint8_t* buf, uint8_t* destip, uint16_t destpo
   uint8_t addr[4];
   getSIPR(addr);
   printf("ip %d.%d.%d.%d\n", addr[0], addr[1], addr[2], addr[3]);
-  if ((ret = (int32_t) socket(sn, Sn_MR_TCP, any_port++, 0x00)) != sn)
+  if ((ret = static_cast<unsigned char>(socket(sn, Sn_MR_TCP, any_port++, 0x00))) != sn)
   {
-   printf("Socket opened status %d\n", (int) ret);
+   printf("Socket opened status %d\n", static_cast<int>(ret));
    if (any_port == 0xffff)
    {
     any_port = 50000;
@@ -1287,7 +1290,7 @@ void processSerial(const int sock)
     const uint32_t msgT = (usTime() - rtk.startTime);
     int type = (rtk.buf[3] << 4) | (rtk.buf[4] >> 4);
     printf("rtkLen %4d type %4d rtkCRC %08x %5d %lu\n",
-	   rtk.fil, type, (unsigned int) rtk.crc, rtk.rxAccum, msgT);
+	   rtk.fil, type, static_cast<unsigned int>(rtk.crc), rtk.rxAccum, msgT);
 #endif
     rtk.t0Accum = usTime();
 #if defined(RTK_SEND)
@@ -1323,9 +1326,9 @@ void processSerial(const int sock)
     if (rtk.buf[0] == '$')
     {
      /* $GNGGA, 091628.00, 3844.78718183,N, 07755.96337656,W, 7,28,0.5,135.9670,M,-33.6653,M, ,*44 */
-     if (strncmp((char *) rtk.buf, "$GNGGA", 6) == 0)
+     if (strncmp(reinterpret_cast<char*>(rtk.buf), "$GNGGA", 6) == 0)
      {
-      char *p = nextArg((char *) rtk.buf);
+      char *p = nextArg(reinterpret_cast<char*>(rtk.buf));
 
       int gpsTime = getNum(&p, 2) * 60;
       gpsTime += getNum(&p, 2);
@@ -1334,11 +1337,11 @@ void processSerial(const int sock)
 
       p = nextArg(p);
       int tmp = getNum(&p, 2);
-      const double lat = (double) tmp + strtod(p, &p) / 60.0;
+      const double lat = static_cast<double>(tmp) + strtod(p, &p) / 60.0;
       p = nextArg(p);
       p = nextArg(p);
       tmp = getNum(&p, 3);
-      const double lon = -((double) tmp + strtod(p, &p) / 60.0);
+      const double lon = -(static_cast<double>(tmp) + strtod(p, &p) / 60.0);
       printf("gpsTime %6d lat %13.10f lon %14.10f\n", gpsTime, lat, lon);
      }
     }
@@ -1362,7 +1365,7 @@ void processSerial(const int sock)
 
 #if defined(USE_DHCP)
 /* DHCP */
-static void wizchip_dhcp_init(void) {
+static void wizchip_dhcp_init() {
  printf(" DHCP client running\n");
 
  DHCP_init1(SOCKET_DHCP, g_ethernet_buf, HOST_NAME);
@@ -1370,7 +1373,7 @@ static void wizchip_dhcp_init(void) {
  reg_dhcp_cbfunc(wizchip_dhcp_assign, wizchip_dhcp_assign, wizchip_dhcp_conflict);
 }
 
-static void wizchip_dhcp_assign(void) {
+static void wizchip_dhcp_assign() {
  getIPfromDHCP(g_net_info.ip);
  getGWfromDHCP(g_net_info.gw);
  getSNfromDHCP(g_net_info.sn);
@@ -1385,17 +1388,17 @@ static void wizchip_dhcp_assign(void) {
  printf(" DHCP leased time : %ld seconds\n", getDHCPLeasetime());
 }
 
-static void wizchip_dhcp_conflict(void) {
+static void wizchip_dhcp_conflict() {
  printf(" Conflict IP from DHCP\n");
 
  // halt or reset or any...
  // ReSharper disable once CppDFAEndlessLoop
- while (1)
+ while (true)
   ; // this example is halt.
 }
 
 /* Timer */
-static void repeating_timer_callback(void) {
+static void repeating_timer_callback() {
  g_msec_cnt++;
 
  if (g_msec_cnt >= 1000 - 1) {
