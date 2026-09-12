@@ -5,3 +5,5 @@ build
 *.txt
 .#*
 CMakeFiles/
+README.md
+pico_sdk_import.cmake
