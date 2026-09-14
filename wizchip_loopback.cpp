@@ -7,6 +7,15 @@
 //#define STATIC_IP
 #define USE_DHCP
 
+#if defined(TCP_SERVER)
+#pragma message("building SERVER")
+#endif	/* SERVER */
+
+#if defined(TCP_CLIENT)
+#pragma message("building CLIENT")
+#endif	/* CLIENT */
+
+
 #define RTK_RECV
 /**
    ----------------------------------------------------------------------------------------------------
@@ -33,7 +42,10 @@ extern "C" {
 #include "hardware/structs/sio.h"
 
 #include "cfg.h"
+#define GPS_LIB
+#if defined(GPS_LIB)
 #include "gpsLib.h"
+#endif  /* GPS_LIB */
 
 #if defined(USE_DHCP)
 #include "dhcp.h"
@@ -43,6 +55,8 @@ extern "C" {
 #endif
 
 #define RTK_SEND
+
+#if !defined(GPS_LIB)
 
 #define DBG0_PIN 28
 #define DBG1_PIN 27
@@ -73,6 +87,8 @@ inline uint32_t usTime()
 {
  return timer_hw->timerawl;
 }
+
+#endif	/* GPS_LIB */
 
 /**
    ----------------------------------------------------------------------------------------------------
@@ -125,8 +141,8 @@ inline uint32_t usTime()
 // #define IPV6
 
 #ifdef IPV4
-#define TCP_SERVER
-//#define TCP_CLIENT
+// #define TCP_SERVER
+// #define TCP_CLIENT
 // #define UDP
 #endif
 
@@ -470,7 +486,9 @@ void get_mac_from_board_id(uint8_t mac[6]) {
  mac[5] = id.id[7];
 }
 
+#if !defined(GPS_LIB)
 void processSerial(int sock);
+#endif	/* GPS_LIB */
 
 uint8_t serialBuf[256];
 uint64_t dhcpT0;
@@ -764,13 +782,13 @@ int main() {
       {
        if (phyDown)
        {
-	phyDown = false;
-	networkInit(false);
+        phyDown = false;
+        networkInit(false);
        }
        else
        {
-	printf("disconnect\n");
-	disconnect(SOCKET_TCP_SERVER);
+        printf("disconnect\n");
+        disconnect(SOCKET_TCP_SERVER);
        }
       }
      }
@@ -935,7 +953,9 @@ int main() {
 
 #ifdef TCP_SERVER
 
+#if !defined(GPS_LIB)
 static void processData(const unsigned char *ptr, size_t len);
+#endif	/* GPS_LIB */
 
 #define _LOOPBACK_DEBUG_ // NOLINT(*-reserved-identifier)
 
@@ -969,7 +989,11 @@ int32_t loopback_tcps(uint8_t sn, uint8_t* buf, uint16_t port)
    size = static_cast<uint16_t>(ret);
 
    rtk.tData = usTime();
+#if !defined(GPS_LIB)
    processData(buf, size);
+#else
+   processRemData(buf, size);
+#endif	/* GPS_LIB */
   }
   break;
 
@@ -1005,6 +1029,8 @@ int32_t loopback_tcps(uint8_t sn, uint8_t* buf, uint16_t port)
  }
  return 1;
 }
+
+#if !defined(GPS_LIB)
 
 static void processData(const unsigned char *ptr, size_t len)
 {
@@ -1095,6 +1121,8 @@ static void processData(const unsigned char *ptr, size_t len)
   ptr += 1;
  }
 }
+
+#endif	/* GPS_LIB */
 
 #endif	/* TCP_SERVER */
 
@@ -1209,36 +1237,38 @@ int32_t loopback_tcpc(uint8_t sn, uint8_t* buf, uint8_t* destip, uint16_t destpo
  return 1;
 }
 
-// char* nextArg(char* p0)
-// {
-//  while (true)
-//  {
-//   const char c0 = *p0;
-//   if (c0 == 0)
-//    break;
-//   p0 += 1;
-//   if (c0 == ',')
-//   {
-//    break;
-//   }
-//  }
-//  return p0;
-// }
-//
-// int getNum(char **p0, int n)
-// {
-//  char *p1 = *p0;
-//  int val = 0;
-//  while (n > 0)
-//  {
-//   const char c1 = *p1++;
-//   val *= 10;
-//   val += c1 - '0';
-//   n -= 1;
-//  }
-//  *p0 = p1;
-//  return val;
-// }
+#if !defined(GPS_LIB)
+
+char* nextArg(char* p0)
+{
+ while (true)
+ {
+  const char c0 = *p0;
+  if (c0 == 0)
+   break;
+  p0 += 1;
+  if (c0 == ',')
+  {
+   break;
+  }
+ }
+ return p0;
+}
+
+int getNum(char **p0, int n)
+{
+ char *p1 = *p0;
+ int val = 0;
+ while (n > 0)
+ {
+  const char c1 = *p1++;
+  val *= 10;
+  val += c1 - '0';
+  n -= 1;
+ }
+ *p0 = p1;
+ return val;
+}
 
 void processSerial(const int sock)
 {
@@ -1372,6 +1402,8 @@ void processSerial(const int sock)
  dbg1Clr();
 }
 
+#endif	/* GPS_LIB */
+
 #endif	/* TCP_CLIENT */
 
 /**
@@ -1427,23 +1459,27 @@ static void repeating_timer_callback() {
 }
 #endif	/* USE_DHCP */
 
-// void printHex(const uint8_t *data, size_t len)
-// {
-//  int col = 0;
-//  for (size_t i = 0; i < len; i++)
-//  {
-//   if (col == 0)
-//   {
-//    printf("  %04X: ", i);
-//   }
-//   printf("%02X ", data[i]);
-//   col += 1;
-//   if (col == 16)
-//   {
-//    col = 0;
-//    printf("\n");
-//   }
-//  }
-//  if (col != 0)
-//   printf("\n");
-// }
+#if !defined(GPS_LIB)
+
+void printHex(const uint8_t *data, size_t len)
+{
+ int col = 0;
+ for (size_t i = 0; i < len; i++)
+ {
+  if (col == 0)
+  {
+   printf("  %04X: ", i);
+  }
+  printf("%02X ", data[i]);
+  col += 1;
+  if (col == 16)
+  {
+   col = 0;
+   printf("\n");
+  }
+ }
+ if (col != 0)
+  printf("\n");
+}
+
+#endif	/* GPS_LIB */

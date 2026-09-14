@@ -1,0 +1,26 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 19,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "server",
+      "displayName": "Server",
+      "binaryDir": "cmake-build-server",
+      "cacheVariables": {
+        "BUILD_TARGET": "SERVER"
+      }
+    },
+    {
+      "name": "client",
+      "displayName": "Client",
+      "binaryDir": "cmake-build-client",
+      "cacheVariables": {
+        "BUILD_TARGET": "CLIENT"
+      }
+    }
+  ]
+}

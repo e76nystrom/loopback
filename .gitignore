@@ -1,4 +1,7 @@
 build
+cmake-build-client
+cmake-build-debug-arm
+cmake-build-server
 .DS_Store
 .vscode/*
 *~

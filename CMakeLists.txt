@@ -19,6 +19,21 @@ set(PICO_BOARD pico CACHE STRING "rp2040")
 
 cmake_minimum_required(VERSION 3.13)
 
+message(STATUS "BUILD_TARGET = '${BUILD_TARGET}'")
+
+set(VALID_TARGETS CLIENT SERVER)
+if(NOT BUILD_TARGET IN_LIST VALID_TARGETS)
+    message(FATAL_ERROR "BUILD_TARGET must be one of: ${VALID_TARGETS}")
+endif()
+
+if(BUILD_TARGET STREQUAL "SERVER")
+    add_compile_definitions("-DTCP_SERVER")
+else()
+    add_compile_definitions("-DTCP_CLIENT")
+endif()
+
+add_compile_definitions("-DDBG0_PIN=28" "-DDBG1_PIN=27")
+
 # Point this at your pico-sdk checkout, or set PICO_SDK_PATH as an env var
 include($ENV{PICO_SDK_PATH}/pico_sdk_init.cmake)
 
