@@ -26,10 +26,14 @@ if(NOT BUILD_TARGET IN_LIST VALID_TARGETS)
     message(FATAL_ERROR "BUILD_TARGET must be one of: ${VALID_TARGETS}")
 endif()
 
+add_compile_definitions("-DSERVER_NAME=\"srv3\"")
+add_compile_definitions("-DPORT=8088")
+
 if(BUILD_TARGET STREQUAL "SERVER")
     add_compile_definitions("-DTCP_SERVER")
 else()
     add_compile_definitions("-DTCP_CLIENT")
+    add_compile_definitions("-DCLIENT_NAME=\"cli3\"")
 endif()
 
 add_compile_definitions("-DDBG0_PIN=28" "-DDBG1_PIN=27")
@@ -81,6 +85,13 @@ target_include_directories(pico_w5500_tcp_server PRIVATE
 # -I/Volumes/Development/eric/GPS/WIZnet-PICO-C/libraries/ioLibrary_Driver/Application/loopback \
 
 # Only the pieces we actually need: core W5500 driver + socket API + DHCP client
+
+file(GLOB U8G2_SOURCES ../u8g2/*.c)
+add_library(u8g2 STATIC ${U8G2_SOURCES})
+target_include_directories(u8g2 PUBLIC ../u8g2)
+
+target_compile_options(u8g2 PRIVATE -ffunction-sections -fdata-sections)
+
 file(GLOB WIZNET_SOURCES
     ${WIZNET_DIR}/Ethernet/*.c
     ${WIZNET_DIR}/Ethernet/W5500/*.c
@@ -106,7 +117,9 @@ target_link_libraries(pico_w5500_tcp_server
     hardware_uart
     hardware_dma
     hardware_pio
+    hardware_i2c
     pico_unique_id
+    u8g2
     # ${WIZNET_LIB_DIR}/libETHERNET_FILES.a
     # ${WIZNET_PORT_DIR}/libIOLIBRARY_FILES.a
     # ${WIZNET_PORT_DIR}/libBOARD_FILES.a

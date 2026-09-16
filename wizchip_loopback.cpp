@@ -6,17 +6,18 @@
 
 //#define STATIC_IP
 #define USE_DHCP
+#define U8X8
 
 #if defined(TCP_SERVER)
 #pragma message("building SERVER")
+#define HOST_NAME SERVER_NAME
 #endif	/* SERVER */
 
 #if defined(TCP_CLIENT)
 #pragma message("building CLIENT")
+#define HOST_NAME SERVER_NAME
 #endif	/* CLIENT */
 
-
-#define RTK_RECV
 /**
    ----------------------------------------------------------------------------------------------------
    Includes
@@ -28,11 +29,18 @@
 //#include <stdbool.h>
 
 #include "port_common.h"
-extern "C" {
+
+extern "C"
+{
 #include "wizchip_conf.h"
 #include "wizchip_spi.h"
 #include "timer/timer.h"
+
+#if defined(U8X8)
+#include "u8x8.h"
+#endif  /* U8X8 */
 }
+
 #include "loopback.h"
 #include "socket.h"
 #include "pico/unique_id.h"
@@ -40,8 +48,10 @@ extern "C" {
 #include "hardware/timer.h"
 #include "hardware/gpio.h"
 #include "hardware/structs/sio.h"
+#if defined(U8X8)
+#include "hardware/i2c.h"
+#endif  /* U8X8 */
 
-#include "cfg.h"
 #define GPS_LIB
 #if defined(GPS_LIB)
 #include "gpsLib.h"
@@ -336,7 +346,105 @@ static void wizchip_dhcp_conflict();
 
 /* Timer */
 static void repeating_timer_callback();
-#endif
+#endif	/* USE_DHCP */
+
+#if defined(U8X8)
+
+#define I2C_PORT i2c1
+#define I2C_SDA  26
+#define I2C_SCL  27
+
+//extern "C" uint8_t u8x8_byte_pico_hw_i2c(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
+//extern "C" uint8_t u8x8_gpio_and_delay_pico(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
+
+// ReSharper disable once CppParameterMayBeConstPtrOrRef
+extern "C" uint8_t u8x8_byte_pico_hw_i2c(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
+{
+ static uint8_t buffer[32];
+ static uint8_t buf_idx;
+
+ switch (msg)
+ {
+ case U8X8_MSG_BYTE_SEND:
+ {
+  auto data = static_cast<uint8_t*>(arg_ptr);
+  while (arg_int > 0)
+  {
+   buffer[buf_idx++] = *data++;
+   arg_int--;
+  }
+  break;
+ }
+
+ case U8X8_MSG_BYTE_START_TRANSFER:
+  buf_idx = 0;
+  break;
+
+ case U8X8_MSG_BYTE_END_TRANSFER:
+  i2c_write_blocking(I2C_PORT, u8x8_GetI2CAddress(u8x8) >> 1,
+                     buffer, buf_idx, false);
+  break;
+
+ case U8X8_MSG_BYTE_INIT:
+ case U8X8_MSG_BYTE_SET_DC:
+  break;
+
+ default:
+  return 0;
+ }
+
+ return 1;
+}
+
+uint8_t u8x8_gpio_and_delay_pico(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
+{
+ switch (msg)
+ {
+ case U8X8_MSG_GPIO_AND_DELAY_INIT:
+  break; // I2C peripheral already set up in main()
+ case U8X8_MSG_DELAY_MILLI:
+  sleep_ms(arg_int);
+  break;
+ case U8X8_MSG_DELAY_10MICRO:
+  sleep_us(arg_int * 10);
+  break;
+ case U8X8_MSG_DELAY_100NANO:
+  sleep_us(1);
+  break;
+ case U8X8_MSG_GPIO_I2C_CLOCK:
+ case U8X8_MSG_GPIO_I2C_DATA:
+  break; // hardware I2C drives these lines itself
+ default:
+  return 0;
+ }
+ return 1;
+}
+
+void u8x8Init()
+{
+ i2c_init(I2C_PORT, 400 * 1000);
+ gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
+ gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);
+ gpio_pull_up(I2C_SDA);
+ gpio_pull_up(I2C_SCL);
+
+ u8x8_t u8x8;
+ u8x8_Setup(&u8x8, u8x8_d_sh1106_128x64_noname,
+            u8x8_cad_ssd13xx_i2c,
+            u8x8_byte_pico_hw_i2c,
+            u8x8_gpio_and_delay_pico);
+
+ u8x8_SetI2CAddress(&u8x8, 0x3C << 1); // 7-bit 0x3C shifted, u8x8 uses 8-bit convention
+
+ u8x8_InitDisplay(&u8x8);
+ u8x8_SetPowerSave(&u8x8, 0);
+ u8x8_ClearDisplay(&u8x8);
+
+ u8x8_SetFont(&u8x8, u8x8_font_chroma48medium8_r);
+ u8x8_DrawString(&u8x8, 0, 0, "hello " HOST_NAME);
+}
+
+#endif	/* U8X8 */
 
 // static void buildCRC24qTable();
 
@@ -640,7 +748,7 @@ void wizchip_spi_init() {
  // make the SPI pins available to picotool
  bi_decl(bi_3pins_with_func(PIN_MISO, PIN_MOSI, PIN_SCK, GPIO_FUNC_SPI));
 
- // chip select is active-low, so we'll initialise it to a driven-high state
+ // chip select is active-low, so we'll initialize it to a driven-high state
  gpio_init(PIN_CS);
  gpio_set_dir(PIN_CS, GPIO_OUT);
  gpio_put(PIN_CS, true);
@@ -656,9 +764,9 @@ void wizchip_spi_init() {
  channel_config_set_transfer_data_size(&dma_channel_config_tx, DMA_SIZE_8);
  channel_config_set_dreq(&dma_channel_config_tx, DREQ_SPI0_TX);
 
- // We set the inbound DMA to transfer from the SPI receive FIFO to a memory buffer paced by the SPI RX FIFO DREQ
+ // We set the inbound DMA to transfer from the SPI receive FIFO to a memory buffer paced by the SPI RX FIFO DREQ.
  // We configure the read address to remain unchanged for each element, but the write
- // address to increment (so data is written throughout the buffer)
+ // address to increment (so data is written throughout the buffer.)
  dma_channel_config_rx = dma_channel_get_default_config(dma_rx);
  channel_config_set_transfer_data_size(&dma_channel_config_rx, DMA_SIZE_8);
  channel_config_set_dreq(&dma_channel_config_rx, DREQ_SPI0_RX);
@@ -713,6 +821,10 @@ int main() {
 
  // gpio_init(PIN_RST);
  // gpio_set_dir(PIN_RST, GPIO_OUT);
+
+#if defined(U8X8)
+ u8x8Init();
+#endif	/* U8X8 */
 
  wizchip_spi_init();
  wizchip_cris_initialize();
