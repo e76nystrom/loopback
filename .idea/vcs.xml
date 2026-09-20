@@ -3,6 +3,7 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../gpsLib" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../oledLib" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../pico-sdk" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../pico-sdk/lib/btstack" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../pico-sdk/lib/cyw43-driver" vcs="Git" />

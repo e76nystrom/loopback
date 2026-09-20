@@ -29,16 +29,15 @@
 //#include <stdbool.h>
 
 #include "port_common.h"
+#if defined(U8X8)
+#include "oledLib.h"
+#endif  /* U8X8 */
 
 extern "C"
 {
 #include "wizchip_conf.h"
 #include "wizchip_spi.h"
 #include "timer/timer.h"
-
-#if defined(U8X8)
-#include "u8x8.h"
-#endif  /* U8X8 */
 }
 
 #include "loopback.h"
@@ -354,11 +353,8 @@ static void repeating_timer_callback();
 #define I2C_SDA  26
 #define I2C_SCL  27
 
-//extern "C" uint8_t u8x8_byte_pico_hw_i2c(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
-//extern "C" uint8_t u8x8_gpio_and_delay_pico(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
-
 // ReSharper disable once CppParameterMayBeConstPtrOrRef
-extern "C" uint8_t u8x8_byte_pico_hw_i2c(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
+extern "C" uint8_t u8x8_byte_pico_hw_i2c(u8x8_t *u8x8V, uint8_t msg, uint8_t arg_int, void *arg_ptr)
 {
  static uint8_t buffer[32];
  static uint8_t buf_idx;
@@ -381,7 +377,7 @@ extern "C" uint8_t u8x8_byte_pico_hw_i2c(u8x8_t *u8x8, uint8_t msg, uint8_t arg_
   break;
 
  case U8X8_MSG_BYTE_END_TRANSFER:
-  i2c_write_blocking(I2C_PORT, u8x8_GetI2CAddress(u8x8) >> 1,
+  i2c_write_blocking(I2C_PORT, u8x8_GetI2CAddress(u8x8V) >> 1,
                      buffer, buf_idx, false);
   break;
 
@@ -396,7 +392,7 @@ extern "C" uint8_t u8x8_byte_pico_hw_i2c(u8x8_t *u8x8, uint8_t msg, uint8_t arg_
  return 1;
 }
 
-uint8_t u8x8_gpio_and_delay_pico(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
+uint8_t u8x8_gpio_and_delay_pico(u8x8_t *u8x8V, uint8_t msg, uint8_t arg_int, void *arg_ptr)
 {
  switch (msg)
  {
@@ -428,8 +424,7 @@ void u8x8Init()
  gpio_pull_up(I2C_SDA);
  gpio_pull_up(I2C_SCL);
 
- u8x8_t u8x8;
- u8x8_Setup(&u8x8, u8x8_d_sh1106_128x64_noname,
+  u8x8_Setup(&u8x8, u8x8_d_sh1106_128x64_noname,
             u8x8_cad_ssd13xx_i2c,
             u8x8_byte_pico_hw_i2c,
             u8x8_gpio_and_delay_pico);
@@ -547,9 +542,10 @@ static void uart1_read_exact(uint8_t *data, size_t len)  { uart_read_blocking(UA
 #endif
 
 /* ---------- Init helpers ---------- */
-static void uart_init_hw() {
+static void uart_init_hw()
+{
 #if defined(UART0_RING)
- memset((void *) uart0_rx_ring.buf, 0, sizeof(uart_ring_t));
+ memset((void*)uart0_rx_ring.buf, 0, sizeof(uart_ring_t));
  uart_init(UART0_ID, UART0_BAUD);
  gpio_set_function(UART0_TX, GPIO_FUNC_UART);
  gpio_set_function(UART0_RX, GPIO_FUNC_UART);
@@ -561,7 +557,7 @@ static void uart_init_hw() {
 
 #if defined(UART1_RING)
 #if 0
- memset((void *) uart1_rx_ring.buf, 0, sizeof(uart_ring_t));
+ memset((void*)uart1_rx_ring.buf, 0, sizeof(uart_ring_t));
 #endif
  uart_init(UART1_ID, UART1_BAUD);
  gpio_set_function(UART1_TX, GPIO_FUNC_UART);
@@ -582,11 +578,12 @@ void printMac(const char *mac_address)
 	mac_address[3], mac_address[4], mac_address[5]);
 }
 
-void get_mac_from_board_id(uint8_t mac[6]) {
+void get_mac_from_board_id(uint8_t mac[6])
+{
  pico_unique_board_id_t id;
- pico_get_unique_board_id(&id);  // 8 bytes, id.id[0..7]
+ pico_get_unique_board_id(&id); // 8 bytes, id.id[0..7]
 
- mac[0] = 0x02;              // locally administered, unicast
+ mac[0] = 0x02; // locally administered, unicast
  mac[1] = id.id[2];
  mac[2] = id.id[3];
  mac[3] = id.id[5];
@@ -712,7 +709,8 @@ uint16_t any_port;
 uint32_t lastTime;
 int lastStatus;
 
-void wizchip_rst() {
+void wizchip_rst()
+{
  gpio_init(PIN_RST);
 
 #if defined(USE_PIO) && (_WIZCHIP_ == W5500)
@@ -733,7 +731,8 @@ void wizchip_rst() {
  bi_decl(bi_1pin_with_name(PIN_RST, "WIZCHIP RESET"));
 }
 
-void wizchip_spi_init() {
+void wizchip_spi_init()
+{
 #ifdef USE_PIO
  spi_handle = wiznet_spi_pio_open(&g_spi_config);
  (*spi_handle)->set_active(spi_handle);
@@ -781,7 +780,8 @@ void wizchip_spi_init() {
    Main
    ----------------------------------------------------------------------------------------------------
 */
-int main() {
+int main()
+{
  /* Initialize */
  int retval = 0;
 
@@ -812,7 +812,7 @@ int main() {
 #if defined(UART_RING)
  uart_init_hw();
 #endif
-    
+
  buildCRC24qTable();
 
  wizchip_rst();
@@ -844,7 +844,7 @@ int main() {
 #ifdef TCP_SERVER
  dhcpT0 = timer_time_us_64(timer_hw);
 
-//#define DHCP_INTERVAL (3600 * 1000000ULL)
+ //#define DHCP_INTERVAL (3600 * 1000000ULL)
 #define DHCP_INTERVAL (300 * 1000000ULL)
 
  static uint32_t secTimer;
@@ -853,25 +853,25 @@ int main() {
  {
   const uint8_t status = getSn_SR(SOCKET_TCP_SERVER);
 
-  const uint64_t t = timer_time_us_64(timer_hw);
+  const auto t = timer_time_us_64(timer_hw);
   if ((t - dhcpT0) > DHCP_INTERVAL)
   {
    dhcpT0 = t;
    DHCP_run();
   }
 
-  const uint32_t t32 = t;
-  if (t32 - secTimer > 1000000)
+  if (const uint32_t t32 = t;
+      t32 - secTimer > 1000000)
   {
    secTimer = t32;
 
    if (rtk.state != RCV_IDLE &&
-       (t32 - rtk.t0) > (100 * 1000))
+    (t32 - rtk.t0) > (100 * 1000))
    {
     rtk.state = RCV_IDLE;
    }
 
-   if ((status == SOCK_ESTABLISHED))
+   if (status == SOCK_ESTABLISHED)
    {
     printf("t %u\n", static_cast<unsigned int>(t32 - rtk.tData));
     if ((t32 - rtk.tData) > (10 * 1000000))
@@ -911,7 +911,7 @@ int main() {
   char* p = reinterpret_cast<char*>(serialBuf);
   int size = 0;
   while (uart_is_readable(uart1) &&
-	 size < sizeof(serialBuf))
+         size < sizeof(serialBuf))
   {
    *p++ = uart_getc(uart1);
    size++;
@@ -921,6 +921,8 @@ int main() {
   {
    if (status == SOCK_ESTABLISHED)
    {
+#if 0
+#else
     const int ret = send(SOCKET_TCP_SERVER, serialBuf, size);
     if (ret < 0)
     {
@@ -928,6 +930,7 @@ int main() {
      close(SOCKET_TCP_SERVER);
      return ret;
     }
+#endif
    }
   }
 
@@ -964,18 +967,17 @@ int main() {
   }
 
   retval = loopback_tcpc(SOCKET_TCP_CLIENT, g_tcp_client_buf,
-			 g_dns_target_ip, tcp_client_destport);
+                         g_dns_target_ip, tcp_client_destport);
   if (retval < 0)
   {
    printf(" loopback_tcpc error : %d\n", retval);
 
    // ReSharper disable once CppDFAEndlessLoop
-   while (true)
-    ;
+   while (true);
   }
  }
 #endif	/* TCP_CLIENT */
-    
+
 #ifdef UDP
  /* UDP loopback test */
  if ((retval = loopback_udps(SOCKET_UDP, g_udp_buf, PORT_UDP)) < 0)
@@ -1023,7 +1025,7 @@ int main() {
  }
 #endif
 #endif
-}
+}  /* main */
 
 /**
    ----------------------------------------------------------------------------------------------------

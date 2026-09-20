@@ -59,7 +59,12 @@ set(WIZNET_LIB_DIR /Volumes/Development/eric/GPS/WIZnet-PICO-C/build/libraries)
 set(WIZNET_PORT_DIR /Volumes/Development/eric/GPS/WIZnet-PICO-C/build/port)
 set(WIZNET_BUILD_DIR /Volumes/Development/eric/GPS/WIZnet-PICO-C/build)
 
-add_executable(pico_w5500_tcp_server wizchip_loopback.cpp dhcp.c ../gpsLib/src/gpsLib.cpp)
+add_executable(pico_w5500_tcp_server
+        wizchip_loopback.cpp
+        dhcp.c
+        ../gpsLib/src/gpsLib.cpp
+        ../oledLib/src/oledLib.cpp
+)
 
 target_include_directories(pico_w5500_tcp_server PRIVATE
     ${WIZNET_DIR}/Ethernet
@@ -75,6 +80,7 @@ target_include_directories(pico_w5500_tcp_server PRIVATE
     ${WIZNET_BASE_DIR}/libraries/ioLibrary_Driver/Internet/DHCP
     ./
     ../gpsLib/src
+    ../oledLib/src
 )
 
 # -I/Volumes/Development/eric/GPS/WIZnet-PICO-C/port \
