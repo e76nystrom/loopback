@@ -28,6 +28,17 @@
 #include <cstring>
 //#include <stdbool.h>
 
+#include "hardware/uart.h"
+#include "hardware/structs/uart.h"
+#include "pico/stdlib.h"
+#include "RP2040.h"
+#include "pico/time.h"
+
+#if defined(MULTI_CORE)
+#include "pico/multicore.h"
+[[noreturn]] void core1_entry();
+#endif	/* MULTI_CORE */
+
 #include "port_common.h"
 #if defined(U8X8)
 #include "oledLib.h"
@@ -59,45 +70,52 @@ extern "C"
 #if defined(USE_DHCP)
 #include "dhcp.h"
 #include "dns.h"
+#endif  /* USE_DHCP */
 
-//#include "timer.h"
-#endif
-
-#define RTK_SEND
-
-#if !defined(GPS_LIB)
-
-#define DBG0_PIN 28
-#define DBG1_PIN 27
-
-#define sio_hw ((sio_hw_t *)SIO_BASE)
-
-inline void dbg0Set()
-{
- sio_hw->gpio_set = (1 << DBG0_PIN);
-}
-
-inline void dbg0Clr()
-{
- sio_hw->gpio_clr = (1 << DBG0_PIN);
-}
-
-inline void dbg1Set()
-{
- sio_hw->gpio_set = (1 << DBG1_PIN);
-}
-
-inline void dbg1Clr()
-{
- sio_hw->gpio_clr = (1 << DBG1_PIN);
-}
-
-inline uint32_t usTime()
-{
- return timer_hw->timerawl;
-}
-
-#endif	/* GPS_LIB */
+// #if !defined(GPS_LIB)
+//
+// #define DBG0_PIN 4
+// #define DBG1_PIN 5
+// #define DBG2_PIN 28
+//
+// #define sio_hw ((sio_hw_t *)SIO_BASE)
+//
+// inline void dbg0Set()
+// {
+//  sio_hw->gpio_set = (1 << DBG0_PIN);
+// }
+//
+// inline void dbg0Clr()
+// {
+//  sio_hw->gpio_clr = (1 << DBG0_PIN);
+// }
+//
+// inline void dbg1Set()
+// {
+//  sio_hw->gpio_set = (1 << DBG1_PIN);
+// }
+//
+// inline void dbg1Clr()
+// {
+//  sio_hw->gpio_clr = (1 << DBG1_PIN);
+// }
+//
+// inline void dbg2Set()
+// {
+//  sio_hw->gpio_set = (1 << DBG2_PIN);
+// }
+//
+// inline void dbg2Clr()
+// {
+//  sio_hw->gpio_clr = (1 << DBG2_PIN);
+// }
+//
+// inline uint32_t usTime()
+// {
+//  return timer_hw->timerawl;
+// }
+//
+// #endif	/* GPS_LIB */
 
 /**
    ----------------------------------------------------------------------------------------------------
@@ -117,34 +135,26 @@ inline uint32_t usTime()
 /* Socket */
 #define SOCKET_TCP_SERVER 0
 #define SOCKET_TCP_CLIENT 1
-#if 0
-#define SOCKET_UDP 2
-#define SOCKET_TCP_SERVER6 3
-#define SOCKET_TCP_CLIENT6 4
-#define SOCKET_UDP6 5
-#define SOCKET_TCP_SERVER_DUAL 6
-#define SOCKET_DHCP 7
-#endif
 
 #if defined(USE_DHCP)
 /* Socket */
 #define SOCKET_DHCP 2
 #define SOCKET_DNS 3
-#endif
+#endif  /* USE_DHCP */
 
 /* Port */
-#define PORT_TCP_SERVER 8088
-#define PORT_TCP_CLIENT 8088
-
-#define PORT_TCP_CLIENT_DEST 8088
-#define PORT_UDP 5003
-
-#define PORT_TCP_SERVER6 5004
-#define PORT_TCP_CLIENT6 5005
-#define PORT_TCP_CLIENT6_DEST 5006
-#define PORT_UDP6 5007
-
-#define PORT_TCP_SERVER_DUAL 5008
+// #define PORT_TCP_SERVER 8088
+// #define PORT_TCP_CLIENT 8088
+//
+// #define PORT_TCP_CLIENT_DEST 8088
+// #define PORT_UDP 5003
+//
+// #define PORT_TCP_SERVER6 5004
+// #define PORT_TCP_CLIENT6 5005
+// #define PORT_TCP_CLIENT6_DEST 5006
+// #define PORT_UDP6 5007
+//
+// #define PORT_TCP_SERVER_DUAL 5008
 
 #define IPV4
 // #define IPV6
@@ -265,7 +275,7 @@ uint8_t tcp_client_destip[] = {
  192, 168, 50, 103
 };
 
-uint16_t tcp_client_destport = PORT_TCP_CLIENT_DEST;
+uint16_t tcp_client_destport = PORT;
 
 static uint8_t g_tcp_client_buf[ETHERNET_BUF_MAX_SIZE] = {
  0,
@@ -424,7 +434,7 @@ void u8x8Init()
  gpio_pull_up(I2C_SDA);
  gpio_pull_up(I2C_SCL);
 
-  u8x8_Setup(&u8x8, u8x8_d_sh1106_128x64_noname,
+ u8x8_Setup(&u8x8, u8x8_d_sh1106_128x64_noname,
             u8x8_cad_ssd13xx_i2c,
             u8x8_byte_pico_hw_i2c,
             u8x8_gpio_and_delay_pico);
@@ -436,7 +446,9 @@ void u8x8Init()
  u8x8_ClearDisplay(&u8x8);
 
  u8x8_SetFont(&u8x8, u8x8_font_chroma48medium8_r);
- u8x8_DrawString(&u8x8, 0, 0, "hello " HOST_NAME);
+ u8x8_DrawString(&u8x8, 0, 6, "Hello " HOST_NAME);
+ u8x8_DrawString(&u8x8, 0, 7, "0123456789012345");
+ printf("U8x8Init done\n");
 }
 
 #endif	/* U8X8 */
@@ -595,7 +607,7 @@ void get_mac_from_board_id(uint8_t mac[6])
 void processSerial(int sock);
 #endif	/* GPS_LIB */
 
-uint8_t serialBuf[256];
+char serialBuf[256];
 uint64_t dhcpT0;
 
 void networkInit(bool first)
@@ -668,7 +680,8 @@ void networkInit(bool first)
    // ReSharper disable once CppDFAEndlessLoop
    while (true)
    {
-    retval = static_cast<unsigned char>(DNS_run(g_net_info.dns, g_dns_target_domain, g_dns_target_ip));
+    retval = static_cast<unsigned char>(DNS_run(g_net_info.dns, g_dns_target_domain,
+                                                g_dns_target_ip));
     if (retval > 0)
     {
      printf(" DNS success\n");
@@ -775,24 +788,69 @@ void wizchip_spi_init()
 #endif
 }
 
+#if defined(U8X8)
+
+#include "hardware/adc.h"
+
+void initReadTemp()
+{
+ adc_init();
+ adc_set_temp_sensor_enabled(true);  // enable the internal sensor
+ adc_select_input(4);                // channel 4 = temp sensor
+}
+
+float readTemp()
+{
+ const float raw = static_cast<float>(adc_read()) * (3.3f / 4096.0f);
+ const float tempC = 27.0f - (raw - 0.706f) * 581.06f;
+ return tempC;
+}
+
+void displayTemp()
+{
+ static uint64_t tmr0;
+ if (const auto t0 = timer_time_us_64(timer_hw);
+     (t0 - tmr0) > 1000 * 1000)
+ {
+  tmr0 = t0;
+
+  char buf[20];
+  snprintf(buf, sizeof(buf), "    %4.1f %4d ", readTemp(), rtk.rxCount);
+  drawString(0, 1, buf);
+ }
+}
+
+#endif	/* USE_U8X8 */
+
 /**
    ----------------------------------------------------------------------------------------------------
    Main
    ----------------------------------------------------------------------------------------------------
 */
+
+int serverLoop();
+void clientLoop();
+
 int main()
 {
- /* Initialize */
- int retval = 0;
-
+#if defined(DBG0_PIN)
  dbg0Clr();
  gpio_init(DBG0_PIN);
  gpio_set_dir(DBG0_PIN, GPIO_OUT);
+#endif	/* DBG0_PIN */
 
+#if defined(DBG1_PIN)
  dbg1Clr();
  gpio_init(DBG1_PIN);
  gpio_set_dir(DBG1_PIN, GPIO_OUT);
+#endif	/* DBG1_PIN */
 
+#if defined(DBG2_PIN)
+ dbg2Clr();
+ gpio_init(DBG2_PIN);
+ gpio_set_dir(DBG2_PIN, GPIO_OUT);
+#endif	/* DBG2_PIN */
+ 
  stdio_init_all();
 
 #if defined(LIB_PICO_STDIO_USB)
@@ -816,7 +874,7 @@ int main()
  buildCRC24qTable();
 
  wizchip_rst();
- bool is_output = !(gpio_get_dir(PIN_RST));
+ bool is_output = !gpio_get_dir(PIN_RST);
  printf("is_output %d\n", is_output);
 
  // gpio_init(PIN_RST);
@@ -824,12 +882,22 @@ int main()
 
 #if defined(U8X8)
  u8x8Init();
+ initReadTemp();
 #endif	/* U8X8 */
 
  wizchip_spi_init();
  wizchip_cris_initialize();
 
+ dbg2Set();
  networkInit(true);
+ dbg2Clr();
+
+#if defined(U8X8)
+ char tmp[20];
+ snprintf(tmp, sizeof(tmp), "%d.%d.%d.%d %c", g_net_info.ip[0], g_net_info.ip[1],
+	  g_net_info.ip[2], g_net_info.ip[3], HOST_NAME[0]);
+ drawString(0, 0, tmp);
+#endif	/* USE_U8X8 */
 
  is_output = !(gpio_get_dir(PIN_RST));
  printf("is_output %d\n", is_output);
@@ -841,35 +909,237 @@ int main()
 #endif
 #endif
 
-#ifdef TCP_SERVER
- dhcpT0 = timer_time_us_64(timer_hw);
+#if defined(MULTI_CORE)
+ multicore_launch_core1(core1_entry);
+#endif	/* MULTI_CORE */
 
- //#define DHCP_INTERVAL (3600 * 1000000ULL)
+#if defined(UART1_ISR)
+
+ printf("enable interrupts\n");
+ uart_set_irqs_enabled(uart1, true, false); /* sets fifo to 4 bytes */
+ hw_write_masked(&uart_get_hw(uart1)->ifls,
+                 2 << UART_UARTIFLS_RXIFLSEL_LSB,   // 0b010 = 1/2 full (16 bytes)
+                 UART_UARTIFLS_RXIFLSEL_BITS);
+ irq_set_enabled(UART1_IRQ, true);
+
+#endif	/* UART1_ISR */
+
+ // ***** SERVER ******
+
+#if defined(TCP_SERVER)
+
+ serverLoop();
+ 
+#endif	/* TCP_SERVER */
+
+// ***** CLIENT *****
+
+#if defined(TCP_CLIENT)
+
+ clientLoop();
+
+#endif	/* TCP_CLIENT */
+
+}  /* main */
+
+#if defined(UART1_ISR)
+
+inline void readUart()
+{
+ rtk.isrCount += 1;
+ auto fil = rtk.iFil;
+ while (!(uart1_hw->fr & UART_UARTFR_RXFE_BITS))
+ {
+  const auto c = uart1_hw->dr;
+  if (rtk.iCount < ISR_BUF_SIZE)
+  {
+   rtk.iBuf[fil++] = c;
+   if (fil >= RTK_BUF_SIZE)
+    fil = 0;
+   rtk.ifil = fil;
+   __atomic_fetch_add(&rtk.iCount, 1, __ATOMIC_SEQ_CST);
+  }
+  else
+   rtk.isrOverflowCount += 1;
+ }
+ rtk.iFil = fil;
+}
+
+extern "C" void UART1_IRQ_Handler(void)
+{
+ const uint32_t status = uart1_hw->mis;
+ if (status & (UART_UARTMIS_OEMIS_BITS | UART_UARTMIS_FEMIS_BITS))
+ {
+  uart1_hw->icr = UART_UARTICR_OEIC_BITS | UART_UARTICR_FEIC_BITS;
+  rtk.iOverRun++;
+ }
+
+ if (status & (UART_UARTMIS_RXMIS_BITS | UART_UARTMIS_RTMIS_BITS))
+ {
+  uart1_hw->icr = UART_UARTMIS_RXMIS_BITS | UART_UARTMIS_RTMIS_BITS;
+  rtk.isrByteCount += 1;
+  dbg2Set();
+  readUart();
+  dbg2Clr();
+ }
+
+ if (status & UART_UARTMIS_TXMIS_BITS)
+ {
+  uart1_hw->icr = UART_UARTMIS_TXMIS_BITS;
+ }
+}
+
+#endif	/* UART1_ISR */
+
+#if defined(MULTI_CORE)
+
+inline void readUart()
+{
+ rtk.isrCount += 1;
+ while (!(uart1_hw->fr & UART_UARTFR_RXFE_BITS))
+ {
+  const char c = static_cast<char>(uart1_hw->dr);
+  if (rtk.iCount < ISR_BUF_SIZE)
+  {
+   auto fil = rtk.iFil;
+   rtk.iBuf[fil++] = c;
+   if (fil >= RTK_BUF_SIZE)
+    fil = 0;
+   rtk.iFil = fil;
+   rtk.isrByteCount += 1;
+   __atomic_fetch_add(&rtk.iCount, 1, __ATOMIC_SEQ_CST);
+  }
+  else
+   rtk.isrOverflowCount += 1;
+ }
+}
+
+void core1_entry()
+{
+ printf("core 1 started core %d\n", get_core_num());
+#if 1
+ uart_set_irqs_enabled(uart1, true, false);
+ irq_set_enabled(UART1_IRQ, true);
+ hw_write_masked(&uart_get_hw(uart1)->ifls,
+                2 << UART_UARTIFLS_RXIFLSEL_LSB,   // 0b010 = 1/2 full (16 bytes)
+                UART_UARTIFLS_RXIFLSEL_BITS);
+ while (true)
+  __WFI();
+ // asm volatile ("wfi");
+#else
+ while (true)
+ {
+  while (!(uart1_hw->fr & UART_UARTFR_RXFE_BITS))
+  {
+   const char c = static_cast<char>(uart1_hw->dr);
+   if (rtk.iCount < ISR_BUF_SIZE)
+   {
+    auto fil = rtk.iFil;
+    rtk.iBuf[fil++] = c;
+    fil = 0 ? fil >= RTK_BUF_SIZE : fil;
+    rtk.ifil = fil;
+    __atomic_fetch_add(&rtk.iCount, 1, __ATOMIC_SEQ_CST);
+   }
+  }
+ }
+#endif
+}
+
+extern "C" void UART1_IRQ_Handler(void)
+{
+ const uint32_t status = uart1_hw->mis;
+ if (status & (UART_UARTMIS_RXMIS_BITS | UART_UARTMIS_RTMIS_BITS))
+ {
+  uart1_hw->icr = UART_UARTMIS_RXMIS_BITS | UART_UARTMIS_RTMIS_BITS;
+  dbg2Set();
+  readUart();
+  dbg2Clr();
+ }
+
+ if (status & UART_UARTMIS_TXMIS_BITS)
+ {
+  uart1_hw->icr = UART_UARTMIS_TXMIS_BITS;
+ }
+}
+
+#endif	/* MULTI_CORE */
+
+#if defined(TCP_SERVER)
+
+//#define DHCP_INTERVAL (3600 * 1000000ULL)
 #define DHCP_INTERVAL (300 * 1000000ULL)
+
+int serverLoop()
+{
+ dhcpT0 = timer_time_us_64(timer_hw);
 
  static uint32_t secTimer;
  static bool phyDown = false;
- while (true)
+
+ while (true)  // server main loop
  {
+  const auto t64 = timer_time_us_64(timer_hw);
+  const uint32_t t32 = t64;
+  
+#if defined(U8X8)
+  static uint64_t tmr0;
+  if ((t64 - tmr0) > 1000 * 1000)
+  {
+   tmr0 = t64;
+
+   displayTemp();
+  }
+#endif	/* USE_U8X8 */
+
+  pollSerial();
+
   const uint8_t status = getSn_SR(SOCKET_TCP_SERVER);
 
-  const auto t = timer_time_us_64(timer_hw);
-  if ((t - dhcpT0) > DHCP_INTERVAL)
+  if (status == SOCK_ESTABLISHED)
   {
-   dhcpT0 = t;
+   rtk.tData = t32;	    /* temporary add keep alive from client */
+   processSerial(SOCKET_TCP_SERVER);
+
+#if defined(U8X8)
+
+   if (gpsInfo.update)
+   {
+    gpsInfo.update = false;
+    char buf[20];
+    drawString(0, 2, gpsInfo.timeBuf);
+    snprintf(buf, sizeof(buf), "%d %2d   ", gpsInfo.fix, gpsInfo.sats);
+    drawString(9, 2, buf);  // 9 10 11 12 13 14 15
+
+    snprintf(buf, sizeof(buf), " %13.10f", gpsInfo.lat);
+    drawString(0, 3, buf);
+    snprintf(buf, sizeof(buf), "%14.10f", gpsInfo.lon);
+    drawString(0, 4, buf);
+   }
+
+#endif	/* USE_U8X8 */
+
+  }
+  else
+  {
+   if (const int iCount = rtk.iCount;
+       iCount != 0)
+   {
+    rtk.iEmp += iCount;
+    if (rtk.iEmp >=  ISR_BUF_SIZE)
+     rtk.iEmp -= ISR_BUF_SIZE;
+    __atomic_fetch_sub(&rtk.iCount, iCount, __ATOMIC_SEQ_CST);
+   }
+  }
+
+  if ((t64 - dhcpT0) > DHCP_INTERVAL)
+  {
+   dhcpT0 = t64;
    DHCP_run();
   }
 
-  if (const uint32_t t32 = t;
-      t32 - secTimer > 1000000)
+  if (t32 - secTimer > 1000000)
   {
    secTimer = t32;
-
-   if (rtk.state != RCV_IDLE &&
-    (t32 - rtk.t0) > (100 * 1000))
-   {
-    rtk.state = RCV_IDLE;
-   }
 
    if (status == SOCK_ESTABLISHED)
    {
@@ -878,7 +1148,7 @@ int main()
     {
      rtk.tData = t32;
      uint8_t temp;
-     if (ctlwizchip(CW_GET_PHYLINK, (void*)&temp) == -1)
+     if (ctlwizchip(CW_GET_PHYLINK, &temp) == -1)
      {
       printf(" Unknown PHY link status\n");
      }
@@ -908,168 +1178,31 @@ int main()
    }
   }
 
-  char* p = reinterpret_cast<char*>(serialBuf);
-  int size = 0;
-  while (uart_is_readable(uart1) &&
-         size < sizeof(serialBuf))
-  {
-   *p++ = uart_getc(uart1);
-   size++;
-  }
+// #if 0
+// #else
+//     if (const int ret = send(SOCKET_TCP_SERVER, serialBuf, size);
+//         ret < 0)
+//     {
+//      printf("send returned %d\n", ret);
+//      close(SOCKET_TCP_SERVER);
+//      return ret;
+//     }
+// #endif
+  //  }
+  // }
 
-  if (size != 0)
-  {
-   if (status == SOCK_ESTABLISHED)
-   {
-#if 0
-#else
-    const int ret = send(SOCKET_TCP_SERVER, serialBuf, size);
-    if (ret < 0)
-    {
-     printf("send returned %d\n", ret);
-     close(SOCKET_TCP_SERVER);
-     return ret;
-    }
-#endif
-   }
-  }
-
-  retval = loopback_tcps(SOCKET_TCP_SERVER, g_tcp_server_buf, PORT_TCP_SERVER);
-  if (retval < 0)
+  if (const int retval = loopback_tcps(SOCKET_TCP_SERVER, g_tcp_server_buf, PORT);
+      retval < 0)
   {
    printf(" loopback_tcps error : %d\n", retval);
-
    // ReSharper disable once CppDFAEndlessLoop
-   while (true);
+   while (true)
+   {}
   }
  }
  // ReSharper disable once CppDFAUnreachableCode
  printf("exit main\n");
-#endif	/* TCP_SERVER */
-
-#ifdef TCP_CLIENT
- dhcpT0 = timer_time_us_64(timer_hw);
-
- lastTime = timer_time_us_64(timer_hw);
-
- while (true)
- {
-  const uint64_t t = timer_time_us_64(timer_hw);
-  if ((t - dhcpT0) > (3600 * 1000000ULL))
-  {
-   dhcpT0 = t;
-   DHCP_run();
-  }
-  //const uint32_t t32 = t;
-  if ((t - rtk.t0) > (100 * 1000))
-  {
-   rtk.state = RCV_IDLE;
-  }
-
-  retval = loopback_tcpc(SOCKET_TCP_CLIENT, g_tcp_client_buf,
-                         g_dns_target_ip, tcp_client_destport);
-  if (retval < 0)
-  {
-   printf(" loopback_tcpc error : %d\n", retval);
-
-   // ReSharper disable once CppDFAEndlessLoop
-   while (true);
-  }
- }
-#endif	/* TCP_CLIENT */
-
-#ifdef UDP
- /* UDP loopback test */
- if ((retval = loopback_udps(SOCKET_UDP, g_udp_buf, PORT_UDP)) < 0)
- {
-  printf(" loopback_udps error : %d\n", retval);
-
-  while (1);
- }
-#endif
-#ifdef IPV6_AVAILABLE
-#ifdef TCP_SERVER6
- /* TCP server loopback test */
- if ((retval = loopback_tcps(SOCKET_TCP_SERVER6, g_tcp_server6_buf, PORT_TCP_SERVER6)) < 0)
- {
-  printf(" loopback_tcps IPv6 error : %d\n", retval);
-
-  while (1);
- }
-#endif
-#ifdef TCP_CLIENT6
- /* TCP client loopback test */
- if ((retval = loopback_tcpc(SOCKET_TCP_CLIENT6, g_tcp_client6_buf, tcp_client_destip6, tcp_client_destport6)) < 0)
- {
-  printf(" loopback_tcpc IPv6 error : %d\n", retval);
-
-  while (1);
- }
-#endif
-#ifdef UDP6
- /* UDP loopback test */
- if ((retval = loopback_udps(SOCKET_UDP6, g_udp6_buf, PORT_UDP6)) < 0)
- {
-  printf(" loopback_udps IPv6 error : %d\n", retval);
-
-  while (1);
- }
-#endif
-#ifdef TCP_SERVER_DUAL
- /* TCP server dual loopback test */
- if ((retval = loopback_tcps(SOCKET_TCP_SERVER_DUAL, g_tcp_server_dual_buf, PORT_TCP_SERVER_DUAL, AS_IPDUAL)) < 0)
- {
-  printf(" loopback_tcps IPv6 error : %d\n", retval);
-
-  while (1);
- }
-#endif
-#endif
-}  /* main */
-
-/**
-   ----------------------------------------------------------------------------------------------------
-   Functions
-   ----------------------------------------------------------------------------------------------------
-*/
-
-// /* ── CRC-24Q constants ───────────────────────────────────────────────────── */
-//
-// #define CRC24Q_POLY      0x1864CFBu  /* Generator polynomial                 */
-// #define RTCM3_PREAMBLE   0xD3u       /* Mandatory first byte of every frame  */
-// #define RTCM3_HDR_LEN    3           /* Preamble + 2 length/reserved bytes   */
-// #define RTCM3_CRC_LEN    3           /* 24-bit CRC appended at end           */
-// #define RTCM3_MIN_FRAME  (RTCM3_HDR_LEN + RTCM3_CRC_LEN)
-//
-// /* ── CRC-24Q lookup table (generated once on first use) ─────────────────── */
-//
-// static uint32_t crc24qTable[256];
-//
-// static void buildCRC24qTable()
-// {
-//  for (uint32_t i = 0; i < 256; i++)
-//  {
-//   uint32_t crc = i << 16;
-//   for (int j = 0; j < 8; j++)
-//   {
-//    crc <<= 1;
-//    if (crc & 0x1000000u)
-//     crc ^= CRC24Q_POLY;
-//   }
-//   crc24qTable[i] = crc & 0xFFFFFFu;
-//  }
-// }
-//
-// uint32_t crc24(const uint32_t crc, const unsigned char c)
-// {
-//  return ((crc << 8) ^ crc24qTable[((crc >> 16) ^ c) & 0xFFu]) & 0xFFFFFFu;
-// }
-
-#ifdef TCP_SERVER
-
-#if !defined(GPS_LIB)
-static void processData(const unsigned char *ptr, size_t len);
-#endif	/* GPS_LIB */
+}
 
 #define _LOOPBACK_DEBUG_ // NOLINT(*-reserved-identifier)
 
@@ -1087,11 +1220,11 @@ int32_t loopback_tcps(uint8_t sn, uint8_t* buf, uint16_t port)
    getSn_DIPR(sn, destip);
    uint16_t destport = getSn_DPORT(sn);
    printf("%d:Connected - %d.%d.%d.%d : %d\n",
-	  sn, destip[0], destip[1], destip[2], destip[3], destport);
+          sn, destip[0], destip[1], destip[2], destip[3], destport);
 #endif
    setSn_IR(sn, Sn_IR_CON);
   }
-	
+
   size = getSn_RX_RSR(sn);
   if (size > 0) // Don't need to check SOCKERR_BUSY because it doesn't occur.
   {
@@ -1103,11 +1236,7 @@ int32_t loopback_tcps(uint8_t sn, uint8_t* buf, uint16_t port)
    size = static_cast<uint16_t>(ret);
 
    rtk.tData = usTime();
-#if !defined(GPS_LIB)
-   processData(buf, size);
-#else
    processRemData(buf, size);
-#endif	/* GPS_LIB */
   }
   break;
 
@@ -1144,103 +1273,53 @@ int32_t loopback_tcps(uint8_t sn, uint8_t* buf, uint16_t port)
  return 1;
 }
 
-#if !defined(GPS_LIB)
-
-static void processData(const unsigned char *ptr, size_t len)
-{
- uart_write_blocking(UART0_ID, ptr, len);
- while (len > 0)
- {
-  len -= 1;
-  const unsigned char ch = *ptr;
-  //uart_putc(UART0_ID, ch);
-  switch (rtk.state)
-  {
-  case RCV_IDLE:
-   if (ch == 0xd3)
-   {
-    rtk.count = 2;
-    uart_putc(UART1_ID, ch);
-    rtk.buf[0] = ch;
-    rtk.crc = crc24qTable[static_cast<int>(ch)];
-    crcBuf[0] = rtk.crc;
-    rtk.fil = 1;
-    rtk.t0 = usTime();
-    rtk.state = RCV_GET_LEN;
-   }
-   else //if (ch == '$')
-   {
-    rtk.t0 = usTime();
-    rtk.state = RCV_TEXT;
-    uart_putc(UART1_ID, ch);
-#if 0
-    Serial.print(ch);
-    Serial.flush();
-#endif
-   }
-   break;
-
-  case RCV_GET_LEN:
-   uart_putc(UART1_ID, ch);
-   rtk.crc = ((rtk.crc << 8) ^ crc24qTable[((rtk.crc >> 16) ^ ch) & 0xFFu]) & 0xFFFFFFu;
-   crcBuf[rtk.fil] = rtk.crc;
-   rtk.len = (rtk.len << 8) + ch;
-   rtk.buf[rtk.fil] = ch;
-   rtk.fil += 1;
-   rtk.count -= 1;
-   if (rtk.count == 0)
-   {
-    rtk.state = RCV_GET_DATA;
-    rtk.len &= 0x3ff;
-    rtk.len += 3;
-   }
-   break;
-
-  case RCV_GET_DATA:
-   uart_putc(UART1_ID, ch);
-   rtk.crc = ((rtk.crc << 8) ^ crc24qTable[((rtk.crc >> 16) ^ ch) & 0xFFu]) & 0xFFFFFFu;
-   crcBuf[rtk.fil] = rtk.crc;
-   rtk.buf[rtk.fil] = ch;
-   rtk.fil += 1;
-   rtk.len -= 1;
-   if (rtk.len == 0)
-   {
-#if 0
-    const int type = (rtk.buf[3] << 4) | (rtk.buf[4] >> 4);
-    printf("len %4d type %4d CRC %08x\n", rtk.fil, type, rtk.crc);
-#endif
-#if defined(DBG_PRT)
-    if (prt == 1)
-    {
-     printHex(rtk.buf, rtk.fil);
-     printHex(crcBuf, rtk.fil << 2);
-     prt = 0;
-    }
-#endif	/* DBG_PRT */
-    rtk.state = RCV_IDLE;
-   }
-   break;
-
-  case RCV_TEXT:
-   uart_putc(UART1_ID, ch);
-#if 0
-   Serial.print(ch);
-#endif
-   if (ch == '\n')
-   {
-    rtk.state = RCV_IDLE;
-   }
-   break;
-  }
-  ptr += 1;
- }
-}
-
-#endif	/* GPS_LIB */
-
 #endif	/* TCP_SERVER */
 
 #if defined(TCP_CLIENT)
+
+void clientLoop()
+{
+ dhcpT0 = timer_time_us_64(timer_hw);
+
+ lastTime = timer_time_us_64(timer_hw);
+
+ while (true)  // client main loop
+ {
+  const uint64_t t = timer_time_us_64(timer_hw);
+
+#if defined(U8X8)
+  static int64_t tmr0;
+  if ((t - tmr0) > 1000 * 1000)
+  {
+   tmr0 = t;
+
+   displayTemp();
+  }
+#endif	/* USE_U8X8 */
+
+  if ((t - dhcpT0) > (3600 * 1000000ULL))
+  {
+   dhcpT0 = t;
+   DHCP_run();
+  }
+  //const uint32_t t32 = t;
+  if ((t - rtk.t0) > (100 * 1000))
+  {
+   rtk.state = RCV_IDLE;
+  }
+
+  int retval = loopback_tcpc(SOCKET_TCP_CLIENT, g_tcp_client_buf,
+			     g_dns_target_ip, tcp_client_destport);
+  if (retval < 0)
+  {
+   printf(" loopback_tcpc error : %d\n", retval);
+
+   // ReSharper disable once CppDFAEndlessLoop
+   while (true);
+  }
+ }
+}
+
 #define _LOOPBACK_DEBUG_ // NOLINT(*-reserved-identifier)
 int32_t loopback_tcpc(uint8_t sn, uint8_t* buf, uint8_t* destip, uint16_t destport)
 {
@@ -1282,7 +1361,26 @@ int32_t loopback_tcpc(uint8_t sn, uint8_t* buf, uint8_t* destip, uint16_t destpo
    setSn_IR(sn, Sn_IR_CON); // this interrupt should write the bit cleared to '1'
   }
 
+  pollSerial();
   processSerial(SOCKET_TCP_CLIENT);
+
+#if defined(U8X8)
+
+  if (gpsInfo.update)
+  {
+   gpsInfo.update = false;
+   char buf[20];
+   drawString(0, 2, gpsInfo.timeBuf);
+   snprintf(buf, sizeof(buf), "%d %2d   ", gpsInfo.fix, gpsInfo.sats);
+   drawString(9, 2, buf);  // 9 10 11 12 13 14 15
+
+   snprintf(buf, sizeof(buf), " %13.10f", gpsInfo.lat);
+   drawString(0, 3, buf);
+   snprintf(buf, sizeof(buf), "%14.10f", gpsInfo.lon);
+   drawString(0, 4, buf);
+  }
+
+#endif	/* USE_U8X8 */
 
   size_t size;
   if ((size = getSn_RX_RSR(sn)) > 0)
@@ -1348,187 +1446,16 @@ int32_t loopback_tcpc(uint8_t sn, uint8_t* buf, uint8_t* destip, uint16_t destpo
  default:
   break;
  }
+ 
  return 1;
 }
 
-#if !defined(GPS_LIB)
-
-char* nextArg(char* p0)
-{
- while (true)
- {
-  const char c0 = *p0;
-  if (c0 == 0)
-   break;
-  p0 += 1;
-  if (c0 == ',')
-  {
-   break;
-  }
- }
- return p0;
-}
-
-int getNum(char **p0, int n)
-{
- char *p1 = *p0;
- int val = 0;
- while (n > 0)
- {
-  const char c1 = *p1++;
-  val *= 10;
-  val += c1 - '0';
-  n -= 1;
- }
- *p0 = p1;
- return val;
-}
-
-void processSerial(const int sock)
-{
- while (uart_is_readable(uart1))
- {
-  const char c = uart_getc(uart1);
-  uart_putc(uart0, c);
-  dbg1Set();
-  switch (rtk.state)
-  {
-  case RCV_IDLE:
-   if (c == 0xd3)
-   {
-    // dbg0Set();
-    rtk.count = 2;
-    rtk.buf[0] = c;
-    rtk.crc = crc24qTable[c];
-    crcBuf[0] = rtk.crc;
-    rtk.fil = 1;
-    rtk.t0 = usTime();
-    rtk.state = RCV_GET_LEN;
-    rtk.startTime = usTime();
-   }
-   else // if (c == '$')
-   {
-    rtk.t0 = usTime();
-    rtk.state = RCV_TEXT;
-    rtk.buf[0] = c;
-    rtk.fil = 1;
-   }
-   break;
-
-  case RCV_GET_LEN:
-   rtk.crc = ((rtk.crc << 8) ^ crc24qTable[((rtk.crc >> 16) ^ c) & 0xFFu]) & 0xFFFFFFu;
-   crcBuf[rtk.fil] = rtk.crc;
-   rtk.len = (rtk.len << 8) + c;
-   rtk.buf[rtk.fil] = c;
-   rtk.fil += 1;
-   rtk.count -= 1;
-   if (rtk.count == 0)
-   {
-    rtk.state = RCV_GET_DATA;
-    rtk.len &= 0x3ff;
-    // printf("rtkLen %d\n", rtk.len);
-#if 0 && defined(DBG_PRT)
-    // if ((prt == 0) && (rtk.len == 19))
-    if (rtk.len == 19)
-    {
-     prt = 1;
-    }
-#endif	/* DBG_PRT */
-    rtk.len += 3;
-   }
-   break;
-
-  case RCV_GET_DATA:
-   rtk.crc = ((rtk.crc << 8) ^ crc24qTable[((rtk.crc >> 16) ^ c) & 0xFFu]) & 0xFFFFFFu;
-   crcBuf[rtk.fil] = rtk.crc;
-   rtk.buf[rtk.fil] = c;
-   rtk.fil += 1;
-   rtk.len -= 1;
-   if (rtk.len == 0)
-   {
-    rtk.rxAccum += rtk.fil;
-#if 1
-    const uint32_t msgT = (usTime() - rtk.startTime);
-    int type = (rtk.buf[3] << 4) | (rtk.buf[4] >> 4);
-    printf("rtkLen %4d type %4d rtkCRC %08x %5d %lu\n",
-	   rtk.fil, type, static_cast<unsigned int>(rtk.crc), rtk.rxAccum, msgT);
-#endif
-    rtk.t0Accum = usTime();
-#if defined(RTK_SEND)
-    const int err = send(sock, reinterpret_cast<uint8_t*>(rtk.buf), rtk.fil);
-    if (err < 0)
-     printf("send failed: errno %d\n", err);
-
-#endif	/* RTK_SEND */
-
-#if 0 && defined(DBG_PRT)
-    if (prt == 1)
-    {
-     printHex(rtk.buf, rtk.fil);
-     printHex(crcBuf, rtk.fil << 2);
-     prt = 0;
-    }
-#endif	/* DDBG_PRT */
-    // dbg0Clr();
-    rtk.state = RCV_IDLE;
-   }
-   break;
-
-  case RCV_TEXT:
-   rtk.buf[rtk.fil] = c;
-   rtk.fil += 1;
-   if (c == '\n')
-   {
-    rtk.buf[rtk.fil] = 0;
-    const int err = send(sock, reinterpret_cast<uint8_t*>(rtk.buf), rtk.fil);
-    if (err < 0)
-     printf("send failed: errno %d\n", err);
-#if 1
-    if (rtk.buf[0] == '$')
-    {
-     /* $GNGGA, 091628.00, 3844.78718183,N, 07755.96337656,W, 7,28,0.5,135.9670,M,-33.6653,M, ,*44 */
-     if (strncmp(reinterpret_cast<char*>(rtk.buf), "$GNGGA", 6) == 0)
-     {
-      char *p = nextArg(reinterpret_cast<char*>(rtk.buf));
-
-      int gpsTime = getNum(&p, 2) * 60;
-      gpsTime += getNum(&p, 2);
-      gpsTime *= 60;
-      gpsTime += getNum(&p, 2);
-
-      p = nextArg(p);
-      int tmp = getNum(&p, 2);
-      const double lat = static_cast<double>(tmp) + strtod(p, &p) / 60.0;
-      p = nextArg(p);
-      p = nextArg(p);
-      tmp = getNum(&p, 3);
-      const double lon = -(static_cast<double>(tmp) + strtod(p, &p) / 60.0);
-      printf("gpsTime %6d lat %13.10f lon %14.10f\n", gpsTime, lat, lon);
-     }
-    }
-    rtk.fil = 0;
-    rtk.state = RCV_IDLE;
-#endif
-   }
-
-  }
- }
- dbg1Clr();
-}
-
-#endif	/* GPS_LIB */
-
 #endif	/* TCP_CLIENT */
 
-/**
-   ----------------------------------------------------------------------------------------------------
-   Functions
-   ----------------------------------------------------------------------------------------------------
-*/
-
 #if defined(USE_DHCP)
-/* DHCP */
-static void wizchip_dhcp_init() {
+
+static void wizchip_dhcp_init()
+{
  printf(" DHCP client running\n");
 
  DHCP_init1(SOCKET_DHCP, g_ethernet_buf, HOST_NAME);
@@ -1536,7 +1463,8 @@ static void wizchip_dhcp_init() {
  reg_dhcp_cbfunc(wizchip_dhcp_assign, wizchip_dhcp_assign, wizchip_dhcp_conflict);
 }
 
-static void wizchip_dhcp_assign() {
+static void wizchip_dhcp_assign()
+{
  getIPfromDHCP(g_net_info.ip);
  getGWfromDHCP(g_net_info.gw);
  getSNfromDHCP(g_net_info.sn);
@@ -1551,49 +1479,27 @@ static void wizchip_dhcp_assign() {
  printf(" DHCP leased time : %ld seconds\n", getDHCPLeasetime());
 }
 
-static void wizchip_dhcp_conflict() {
+static void wizchip_dhcp_conflict()
+{
  printf(" Conflict IP from DHCP\n");
 
  // halt or reset or any...
  // ReSharper disable once CppDFAEndlessLoop
- while (true)
-  ; // this example is halt.
+ while (true); // this example is halt.
 }
 
 /* Timer */
-static void repeating_timer_callback() {
+static void repeating_timer_callback()
+{
  g_msec_cnt++;
 
- if (g_msec_cnt >= 1000 - 1) {
+ if (g_msec_cnt >= 1000 - 1)
+ {
   g_msec_cnt = 0;
 
   DHCP_time_handler();
   DNS_time_handler();
  }
 }
+
 #endif	/* USE_DHCP */
-
-#if !defined(GPS_LIB)
-
-void printHex(const uint8_t *data, size_t len)
-{
- int col = 0;
- for (size_t i = 0; i < len; i++)
- {
-  if (col == 0)
-  {
-   printf("  %04X: ", i);
-  }
-  printf("%02X ", data[i]);
-  col += 1;
-  if (col == 16)
-  {
-   col = 0;
-   printf("\n");
-  }
- }
- if (col != 0)
-  printf("\n");
-}
-
-#endif	/* GPS_LIB */

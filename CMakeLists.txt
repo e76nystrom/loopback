@@ -36,7 +36,14 @@ else()
     add_compile_definitions("-DCLIENT_NAME=\"cli3\"")
 endif()
 
-add_compile_definitions("-DDBG0_PIN=28" "-DDBG1_PIN=27")
+add_compile_definitions(
+        "-DDBG0_PIN=4"
+        "-DDBG1_PIN=5"
+        "-DDBG2_PIN=28"
+)
+
+add_compile_definitions(-DMULTI_CORE)
+#add_compile_definitions(-DUART1_ISR)
 
 # Point this at your pico-sdk checkout, or set PICO_SDK_PATH as an env var
 include($ENV{PICO_SDK_PATH}/pico_sdk_init.cmake)
@@ -116,7 +123,6 @@ target_compile_definitions(pico_w5500_tcp_server PRIVATE
 )
 
 target_link_libraries(pico_w5500_tcp_server
-    #dhcp_override
     pico_stdlib
     pico_rand
     hardware_spi
@@ -126,11 +132,9 @@ target_link_libraries(pico_w5500_tcp_server
     hardware_i2c
     pico_unique_id
     u8g2
-    # ${WIZNET_LIB_DIR}/libETHERNET_FILES.a
-    # ${WIZNET_PORT_DIR}/libIOLIBRARY_FILES.a
-    # ${WIZNET_PORT_DIR}/libBOARD_FILES.a
-    # ${WIZNET_PORT_DIR}/libPORT_COMMON_FILES.a
-    # ${WIZNET_PORT_DIR}/libTIMER_FILES.a
+    hardware_adc
+    pico_multicore
+    cmsis_core
   ${WIZNET_BUILD_DIR}/libraries/libETHERNET_FILES.a
   ${WIZNET_BUILD_DIR}/libraries/libDNS_FILES.a
   ${WIZNET_BUILD_DIR}/port/libIOLIBRARY_FILES.a
