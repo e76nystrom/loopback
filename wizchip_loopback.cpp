@@ -73,51 +73,6 @@ extern "C"
 #include "dns.h"
 #endif  /* USE_DHCP */
 
-// #if !defined(GPS_LIB)
-//
-// #define DBG0_PIN 4
-// #define DBG1_PIN 5
-// #define DBG2_PIN 28
-//
-// #define sio_hw ((sio_hw_t *)SIO_BASE)
-//
-// inline void dbg0Set()
-// {
-//  sio_hw->gpio_set = (1 << DBG0_PIN);
-// }
-//
-// inline void dbg0Clr()
-// {
-//  sio_hw->gpio_clr = (1 << DBG0_PIN);
-// }
-//
-// inline void dbg1Set()
-// {
-//  sio_hw->gpio_set = (1 << DBG1_PIN);
-// }
-//
-// inline void dbg1Clr()
-// {
-//  sio_hw->gpio_clr = (1 << DBG1_PIN);
-// }
-//
-// inline void dbg2Set()
-// {
-//  sio_hw->gpio_set = (1 << DBG2_PIN);
-// }
-//
-// inline void dbg2Clr()
-// {
-//  sio_hw->gpio_clr = (1 << DBG2_PIN);
-// }
-//
-// inline uint32_t usTime()
-// {
-//  return timer_hw->timerawl;
-// }
-//
-// #endif	/* GPS_LIB */
-
 /**
    ----------------------------------------------------------------------------------------------------
    Macros
@@ -143,50 +98,9 @@ extern "C"
 #define SOCKET_DNS 3
 #endif  /* USE_DHCP */
 
-/* Port */
-// #define PORT_TCP_SERVER 8088
-// #define PORT_TCP_CLIENT 8088
-//
-// #define PORT_TCP_CLIENT_DEST 8088
-// #define PORT_UDP 5003
-//
-// #define PORT_TCP_SERVER6 5004
-// #define PORT_TCP_CLIENT6 5005
-// #define PORT_TCP_CLIENT6_DEST 5006
-// #define PORT_UDP6 5007
-//
-// #define PORT_TCP_SERVER_DUAL 5008
-
 #define IPV4
-// #define IPV6
-
-#ifdef IPV4
-// #define TCP_SERVER
-// #define TCP_CLIENT
-// #define UDP
-#endif
-
-#ifdef IPV6
-// #define TCP_SERVER6
-// #define TCP_CLIENT6
-// #define UDP6
-#endif
-
-#if defined IPV4 && defined IPV6
-// #define TCP_SERVER_DUAL
-#endif
 
 #define RETRY_CNT   10000
-
-// #if defined(TCP_SERVER)
-// #define HOST_NAME "Server2"
-// #endif
-//
-// #if defined(TCP_CLIENT)
-// #define HOST_NAME "Client2"
-// #define SERVER_NAME "Server1"
-// //#define SERVER_NAME "mac-mini"
-// #endif
 
 /**
    ----------------------------------------------------------------------------------------------------
@@ -241,29 +155,6 @@ static wiz_NetInfo g_net_info = {
 #endif
 #endif
 };
-
-// enum RCV_STATE {RCV_IDLE, RCV_GET_LEN, RCV_GET_DATA, RCV_TEXT};
-//
-// #define RTK_BUF_SIZE 1024
-// uint32_t crcBuf[1024];
-//
-// typedef struct S_RTK_DATA
-// {
-//  enum RCV_STATE state;
-//  unsigned int t0;
-//  uint64_t startTime;
-//  uint32_t crc;
-//  int count;
-//  int len;
-//  int fil;
-//  unsigned char buf[RTK_BUF_SIZE];
-//  unsigned int t0Accum;
-//  int rxAccum;
-//  unsigned int tData;
-//  //int rxCount;
-// } T_RTK_DATA, *P_RTK_DATA;
-//
-// T_RTK_DATA rtk;
 
 #if defined(TCP_SERVER)
 /* Loopback */
@@ -454,139 +345,17 @@ void u8x8Init()
 
 #endif	/* U8X8 */
 
-// static void buildCRC24qTable();
-
-// #define UART_RING
-// #define UART1_RING
-
-/* ---------- UART ring buffer (IRQ-driven RX, non-blocking reads) ---------- */
-
-// #if defined(UART_RING)
-//
-// /* ---------- UART configuration ---------- */
-// #define UART0_ID   uart0
-// #define UART0_TX   0
-// #define UART0_RX   1
-// #define UART0_BAUD 115200
-
 #define UART1_ID   uart1
 #define UART1_TX   8
 #define UART1_RX   9
 #define UART1_BAUD 115200
 
-// #define UART_RING_SIZE 256
-//
-// typedef struct {
-//  uint8_t  buf[UART_RING_SIZE];
-//  volatile uint32_t head; /* next slot to write */
-//  volatile uint32_t tail; /* next slot to read */
-// } uart_ring_t;
-//
-// static void ring_push(uart_ring_t *ring, uint8_t byte) {
-//  auto next = (uint32_t) ((ring->head + 1) % UART_RING_SIZE);
-//  if (next != ring->tail) {        /* drop the byte if the ring is full */
-//   ring->buf[ring->head] = byte;
-//   ring->head = next;
-//  }
-// }
-//
-// static bool ring_pop(uart_ring_t *ring, uint8_t *byte) {
-//  if (ring->head == ring->tail)
-//   return false; /* empty */
-//  *byte = ring->buf[ring->tail];
-//  ring->tail = (uint32_t) ((ring->tail + 1) % UART_RING_SIZE);
-//  return true;
-// }
-// #endif
-
-// #if defined(UART0_RING)
-// static uart_ring_t uart0_rx_ring;
-//
-// static void on_uart0_rx(void) {
-//  while (uart_is_readable(UART0_ID)) {
-//   ring_push(&uart0_rx_ring, uart_getc(UART0_ID));
-//  }
-// }
-//
-// static size_t uart0_read_available(uint8_t *data, size_t max_len) {
-//  size_t count = 0;
-//  uint8_t byte;
-//  while (count < max_len && ring_pop(&uart0_rx_ring, &byte)) {
-//   data[count++] = byte;
-//  }
-//  return count;
-// }
-// #endif
-//
-// #if 0 && defined(UART1_RING)
-// static uart_ring_t uart1_rx_ring;
-//
-// static void on_uart1_rx(void) {
-//  while (uart_is_readable(UART1_ID)) {
-//   ring_push(&uart1_rx_ring, uart_getc(UART1_ID));
-//  }
-// }
-//
-// static size_t uart1_read_available(uint8_t *data, size_t max_len) {
-//  size_t count = 0;
-//  while ((count < max_len) &&
-//         !ring_pop(&uart1_rx_ring, data))
-//  {
-//   data += 1;
-//   count += 1;
-//  }
-//  return count;
-// }
-// #endif
-//
-// #if 0
-// /* ---------- Multi-byte UART helpers ---------- */
-//
-// /* Blocking: sends/receives exactly len bytes, blocks until done. */
-// static void uart0_write(const uint8_t *data, size_t len) { uart_write_blocking(UART0_ID, data, len); }
-// static void uart0_read_exact(uint8_t *data, size_t len)  { uart_read_blocking(UART0_ID, data, len); }
-//
-// static void uart1_write(const uint8_t *data, size_t len) { uart_write_blocking(UART1_ID, data, len); }
-// static void uart1_read_exact(uint8_t *data, size_t len)  { uart_read_blocking(UART1_ID, data, len); }
-//
-// /* Non-blocking: pulls whatever is already in the ring buffer (up to
-//  * max_len bytes) and returns how many bytes were actually copied.
-//  * Safe to call every loop iteration without stalling the socket code. */
-// #endif
-
-/* ---------- Init helpers ---------- */
-// static void uart_init_hw()
-// {
-// #if defined(UART0_RING)
-//  memset((void*)uart0_rx_ring.buf, 0, sizeof(uart_ring_t));
-//  uart_init(UART0_ID, UART0_BAUD);
-//  gpio_set_function(UART0_TX, GPIO_FUNC_UART);
-//  gpio_set_function(UART0_RX, GPIO_FUNC_UART);
-//
-//  irq_set_exclusive_handler(UART0_IRQ, on_uart0_rx);
-//  irq_set_enabled(UART0_IRQ, true);
-//  uart_set_irq_enables(UART0_ID, true /* rx irq */, false /* tx irq */);
-// #endif
-
-// #if defined(UART1_RING)
-// #if 0
-//  memset((void*)uart1_rx_ring.buf, 0, sizeof(uart_ring_t));
-// #endif
-
- static void uart_init_hw()
- {
-  uart_init(UART1_ID, UART1_BAUD);
-  gpio_set_function(UART1_TX, GPIO_FUNC_UART);
-  gpio_set_function(UART1_RX, GPIO_FUNC_UART);
- }
-
-// #if 0
-//  irq_set_exclusive_handler(UART1_IRQ, on_uart1_rx);
-//  irq_set_enabled(UART1_IRQ, true);
-//  uart_set_irq_enables(UART1_ID, true, false);
-// #endif
-// #endif
-// }
+static void uart_init_hw()
+{
+ uart_init(UART1_ID, UART1_BAUD);
+ gpio_set_function(UART1_TX, GPIO_FUNC_UART);
+ gpio_set_function(UART1_RX, GPIO_FUNC_UART);
+}
 
 void printMac(const char *mac_address)
 {
@@ -954,62 +723,11 @@ int main()
 
 }  /* main */
 
-#if defined(UART1_ISR)
-//
-// inline void readUart()
-// {
-//  rtk.isrCount += 1;
-//  auto fil = rtk.iFil;
-//  while (!(uart1_hw->fr & UART_UARTFR_RXFE_BITS))
-//  {
-//   const auto c = uart1_hw->dr;
-//   if (rtk.iCount < ISR_BUF_SIZE)
-//   {
-//    rtk.iBuf[fil++] = c;
-//    if (fil >= RTK_BUF_SIZE)
-//     fil = 0;
-//    rtk.ifil = fil;
-//    __atomic_fetch_add(&rtk.iCount, 1, __ATOMIC_SEQ_CST);
-//   }
-//   else
-//    rtk.isrOverflowCount += 1;
-//  }
-//  rtk.iFil = fil;
-// }
-//
-// extern "C" void UART1_IRQ_Handler(void)
-// {
-//  const uint32_t status = uart1_hw->mis;
-//  if (status & (UART_UARTMIS_OEMIS_BITS | UART_UARTMIS_FEMIS_BITS))
-//  {
-//   uart1_hw->icr = UART_UARTICR_OEIC_BITS | UART_UARTICR_FEIC_BITS;
-//   rtk.iOverRun++;
-//  }
-//
-//  if (status & (UART_UARTMIS_RXMIS_BITS | UART_UARTMIS_RTMIS_BITS))
-//  {
-//   uart1_hw->icr = UART_UARTMIS_RXMIS_BITS | UART_UARTMIS_RTMIS_BITS;
-//   rtk.isrByteCount += 1;
-//   dbg2Set();
-//   readUart();
-//   dbg2Clr();
-//  }
-//
-//  if (status & UART_UARTMIS_TXMIS_BITS)
-//  {
-//   uart1_hw->icr = UART_UARTMIS_TXMIS_BITS;
-//  }
-// }
-
-#endif	/* UART1_ISR */
-
 #if defined(MULTI_CORE)
 
 inline void readUart()
 {
  rtk.isrCount += 1;
-
-#if defined(UART_ATOMIC)
 
  uint32_t fil = rtk.iFil.load(std::memory_order_relaxed);
  const uint32_t emp = rtk.iEmp.load(std::memory_order_acquire);
@@ -1028,27 +746,6 @@ inline void readUart()
    rtk.isrOverflowCount += 1;
  }
  rtk.iFil.store(fil, std::memory_order_release);
-
-#else
-
- // while (!(uart1_hw->fr & UART_UARTFR_RXFE_BITS))
- // {
- //  const char c = static_cast<char>(uart1_hw->dr);
- //  if (rtk.iCount < ISR_BUF_SIZE)
- //  {
- //   auto fil = rtk.iFil;
- //   rtk.iBuf[fil++] = c;
- //   if (fil >= RTK_BUF_SIZE)
- //    fil = 0;
- //   rtk.iFil = fil;
- //   rtk.isrByteCount += 1;
- //   __atomic_fetch_add(&rtk.iCount, 1, __ATOMIC_SEQ_CST);
- //  }
- //  else
- //   rtk.isrOverflowCount += 1;
- // }
-
-#endif /* UART_ATOMIC */
 }
 
 inline void writeUart();
@@ -1099,22 +796,6 @@ void core1_entry()
  while (true)
   __WFI();
  // asm volatile ("wfi");
-#else
- // while (true)
- // {
- //  while (!(uart1_hw->fr & UART_UARTFR_RXFE_BITS))
- //  {
- //   const char c = static_cast<char>(uart1_hw->dr);
- //   if (rtk.iCount < ISR_BUF_SIZE)
- //   {
- //    auto fil = rtk.iFil;
- //    rtk.iBuf[fil++] = c;
- //    fil = 0 ? fil >= RTK_BUF_SIZE : fil;
- //    rtk.ifil = fil;
- //    __atomic_fetch_add(&rtk.iCount, 1, __ATOMIC_SEQ_CST);
- //   }
- //  }
- // }
 #endif
 }
 
@@ -1198,18 +879,10 @@ int serverLoop()
 #endif	/* USE_U8X8 */
 
   }
-  else
+  else				/* flush data if no connection */
   {
    const uint32_t fil = rtk.iFil.load(std::memory_order_acquire);
    rtk.iEmp.store(fil, std::memory_order_release);
-   // if (const int iCount = rtk.iCount;
-   //     iCount != 0)
-   // {
-   //  rtk.iEmp += iCount;
-   //  if (rtk.iEmp >=  ISR_BUF_SIZE)
-   //   rtk.iEmp -= ISR_BUF_SIZE;
-   //  __atomic_fetch_sub(&rtk.iCount, iCount, __ATOMIC_SEQ_CST);
-   // }
   }
 
   if ((t64 - dhcpT0) > DHCP_INTERVAL)
@@ -1258,19 +931,6 @@ int serverLoop()
     }
    }
   }
-
-// #if 0
-// #else
-//     if (const int ret = send(SOCKET_TCP_SERVER, serialBuf, size);
-//         ret < 0)
-//     {
-//      printf("send returned %d\n", ret);
-//      close(SOCKET_TCP_SERVER);
-//      return ret;
-//     }
-// #endif
-  //  }
-  // }
 
   if (const int retval = loopback_tcps(SOCKET_TCP_SERVER, g_tcp_server_buf, PORT);
       retval < 0)
@@ -1509,10 +1169,6 @@ int32_t loopback_tcpc(uint8_t sn, uint8_t* buf, uint8_t* destip, uint16_t destpo
 #ifdef _LOOPBACK_DEBUG_
   printf("%d:Socket closed\n", sn);
 #endif
-  // const char val = close(sn);
-  // printf("Socket closed status %d\n", val);
-  // printf("open socket port %d\n", any_port);
-  // setSIPR(g_dns_target_ip);
   uint8_t addr[4];
   getSIPR(addr);
   printf("ip %d.%d.%d.%d\n", addr[0], addr[1], addr[2], addr[3]);
