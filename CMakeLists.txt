@@ -26,7 +26,7 @@ if(NOT BUILD_TARGET IN_LIST VALID_TARGETS)
     message(FATAL_ERROR "BUILD_TARGET must be one of: ${VALID_TARGETS}")
 endif()
 
-add_compile_definitions("-DSERVER_NAME=\"srv3\"")
+add_compile_definitions("-DSERVER_NAME=\"Server2\"")
 add_compile_definitions("-DPORT=8088")
 
 if(BUILD_TARGET STREQUAL "SERVER")
@@ -40,9 +40,11 @@ add_compile_definitions(
         "-DDBG0_PIN=4"
         "-DDBG1_PIN=5"
         "-DDBG2_PIN=28"
+        "-DDBG3_PIN=22"
 )
 
 add_compile_definitions(-DMULTI_CORE)
+add_compile_definitions(-DUART_ATOMIC)
 #add_compile_definitions(-DUART1_ISR)
 
 # Point this at your pico-sdk checkout, or set PICO_SDK_PATH as an env var
@@ -65,6 +67,14 @@ set(WIZNET_BASE_DIR /Volumes/Development/eric/GPS/WIZnet-PICO-C)
 set(WIZNET_LIB_DIR /Volumes/Development/eric/GPS/WIZnet-PICO-C/build/libraries)
 set(WIZNET_PORT_DIR /Volumes/Development/eric/GPS/WIZnet-PICO-C/build/port)
 set(WIZNET_BUILD_DIR /Volumes/Development/eric/GPS/WIZnet-PICO-C/build)
+
+set_source_files_properties(wizchip_loopback.cpp PROPERTIES
+        COMPILE_OPTIONS "-save-temps;-g;-Og"
+)
+
+set_source_files_properties(../gpsLib/src/gpsLib.cpp PROPERTIES
+        COMPILE_OPTIONS "-save-temps;-g;-Og"
+)
 
 add_executable(pico_w5500_tcp_server
         wizchip_loopback.cpp
@@ -145,6 +155,18 @@ target_link_libraries(pico_w5500_tcp_server
   ${WIZNET_BUILD_DIR}/libraries/libETHERNET_FILES.a
   ${WIZNET_BUILD_DIR}/libraries/libW5500_FILES.a
   ${WIZNET_BUILD_DIR}/libraries/libDHCP_FILES.a
+)
+
+add_custom_command(TARGET pico_w5500_tcp_server POST_BUILD
+        COMMAND arm-none-eabi-objdump -dS
+        ${CMAKE_BINARY_DIR}/CMakeFiles/pico_w5500_tcp_server.dir/wizchip_loopback.cpp.o
+        > ${CMAKE_BINARY_DIR}/wizchip_loopback.cpp.lst
+)
+
+add_custom_command(TARGET pico_w5500_tcp_server POST_BUILD
+        COMMAND arm-none-eabi-objdump -dS
+        ${CMAKE_BINARY_DIR}/CMakeFiles/pico_w5500_tcp_server.dir/Volumes/Development/eric/GPS/gpsLib/src/gpsLib.cpp.o
+        > ${CMAKE_BINARY_DIR}/gpsLib.cpp.lst
 )
 
 string(APPEND CMAKE_EXE_LINKER_FLAGS " -Wl,--print-memory-usage")
